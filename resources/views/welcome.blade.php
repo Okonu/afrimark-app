@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <title>Welcome to Business Portal</title>
+    <title>Afrimark Business Portal</title>
 
     <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio"></script>
@@ -22,7 +22,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-amber-600" viewBox="0 0 24 24">
                     <path fill="currentColor" d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
                 </svg>
-                <span class="ml-3 text-xl font-semibold text-gray-900">Business Portal</span>
+                <span class="ml-3 text-xl font-semibold text-gray-900">Afrimark</span>
             </div>
             <div class="flex items-center space-x-4">
                 <a href="{{ route('filament.client.auth.login') }}"
@@ -133,7 +133,7 @@
 <footer class="bg-white">
     <div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 md:flex md:items-center md:justify-between lg:px-8">
         <div class="flex justify-center space-x-6 md:order-2">
-            <span class="text-gray-400">&copy; {{ date('Y') }} Your Company. All rights reserved.</span>
+            <span class="text-gray-400">&copy; {{ date('Y') }} Afrimark. All rights reserved.</span>
         </div>
     </div>
 </footer>
