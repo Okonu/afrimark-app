@@ -56,7 +56,7 @@ class User extends Authenticatable
 
     public function businesses(): BelongsToMany
     {
-        return $this->belongsToMany(Business::class, 'business_user')
+        return $this->belongsToMany(Business::class, 'business_users')
             ->using(BusinessUser::class)
             ->withTimestamps();
     }

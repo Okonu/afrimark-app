@@ -35,4 +35,9 @@ class BusinessDocument extends Model
     {
         return $this->belongsTo(Business::class);
     }
+
+    public function verifiedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'verified_by');
+    }
 }

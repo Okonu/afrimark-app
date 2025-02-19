@@ -17,7 +17,7 @@ class Business extends Model
 
     public function users()
     {
-        return $this->belongsToMany(User::class, 'business_user')
+        return $this->belongsToMany(User::class, 'business_users')
             ->using(BusinessUser::class)
             ->withTimestamps();
     }
