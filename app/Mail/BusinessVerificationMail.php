@@ -10,7 +10,7 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class BusinessVerificationMail extends Mailable implements ShouldQueue
+class BusinessVerificationMail extends Mailable
 {
     use Queueable, SerializesModels;
 
@@ -32,7 +32,7 @@ class BusinessVerificationMail extends Mailable implements ShouldQueue
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Verify Your Business Email on Afrimark',
+            subject: 'Verify Your Business Email Address',
         );
     }
 
@@ -42,11 +42,7 @@ class BusinessVerificationMail extends Mailable implements ShouldQueue
     public function content(): Content
     {
         return new Content(
-            view: 'emails.business-verification',
-            with: [
-                'business' => $this->business,
-                'token' => $this->token,
-            ],
+            view: 'emails.business-verification-mail',
         );
     }
 
@@ -58,5 +54,19 @@ class BusinessVerificationMail extends Mailable implements ShouldQueue
     public function attachments(): array
     {
         return [];
+    }
+
+    /**
+     * Build the message.
+     *
+     * @return $this
+     */
+    public function build()
+    {
+        return $this->view('emails.business-verification-mail')
+            ->with([
+                'business' => $this->business,
+                'token' => $this->token,
+            ]);
     }
 }

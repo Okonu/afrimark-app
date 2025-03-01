@@ -5,35 +5,22 @@ namespace App\Filament\Client\Pages\Auth;
 use App\Models\Business;
 use App\Models\BusinessUser;
 use App\Services\Business\VerificationService;
-use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Form;
-use Filament\Pages\SimplePage;
+use Filament\Pages\Auth\Register;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Auth;
+use Filament\Http\Responses\Auth\Contracts\RegistrationResponse;
 
-class BusinessInformation extends SimplePage
+class BusinessInformation extends Register
 {
     protected static string $view = 'filament.client.pages.auth.business-information';
 
+    protected static bool $shouldRegisterNavigation = false;
+
     public ?array $data = [];
-
-    public static function canView(): bool
-    {
-        return true;
-    }
-
-    public function getTitle(): string
-    {
-        return 'Business Information';
-    }
-
-    public static function getSlug(): string
-    {
-        return 'business-information';
-    }
 
     public function mount(): void
     {
@@ -105,7 +92,7 @@ class BusinessInformation extends SimplePage
             ->statePath('data');
     }
 
-    public function submit(VerificationService $verificationService): void
+    public function createOrUpdateBusiness(): void
     {
         $data = $this->form->getState();
 
@@ -137,7 +124,7 @@ class BusinessInformation extends SimplePage
             ]);
         }
 
-        $verificationService->sendBusinessEmailVerification($business);
+        app(VerificationService::class)->sendBusinessEmailVerification($business);
 
         Notification::make()
             ->title('Verification Email Sent')
@@ -148,17 +135,25 @@ class BusinessInformation extends SimplePage
         $this->redirect(route('filament.client.auth.email-verification'));
     }
 
-    protected function getFormActions(): array
+    public function register(): ?RegistrationResponse
     {
-        return [
-            $this->getSubmitFormAction(),
-        ];
+        $this->createOrUpdateBusiness();
+
+        return null;
     }
 
-    protected function getSubmitFormAction(): Action
+    public function hasLogo(): bool
     {
-        return Action::make('submit')
-            ->label('Save & Continue')
-            ->submit('submit');
+        return false;
+    }
+
+    public function getLoginUrl(): string
+    {
+        return route('filament.client.auth.login');
+    }
+
+    protected function hasFullWidthFormContainer(): bool
+    {
+        return true;
     }
 }

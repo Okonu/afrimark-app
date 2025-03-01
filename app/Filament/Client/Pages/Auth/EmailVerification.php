@@ -13,7 +13,7 @@ class EmailVerification extends SimplePage
 {
     protected static string $view = 'filament.client.pages.auth.email-verification';
 
-    protected $business;
+    public $business;
 
     public function mount()
     {
@@ -25,7 +25,13 @@ class EmailVerification extends SimplePage
         $user = Auth::user();
         $this->business = $user->businesses()->first();
 
-        if (!$this->business || $this->business->email_verified_at) {
+        if (!$this->business) {
+            // Redirect to business creation page if no business exists
+            $this->redirect(route('filament.client.auth.business-information'));
+            return;
+        }
+
+        if ($this->business->email_verified_at) {
             $this->redirect(route('filament.client.auth.document-upload'));
             return;
         }
@@ -49,12 +55,5 @@ class EmailVerification extends SimplePage
     public function skipVerification()
     {
         $this->redirect(route('filament.client.auth.document-upload'));
-    }
-
-    public function render(): View
-    {
-        return view('filament.client.pages.auth.email-verification', [
-            'business' => $this->business,
-        ]);
     }
 }

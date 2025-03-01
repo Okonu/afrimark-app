@@ -14,6 +14,10 @@ class ListDebtors extends ListRecords
     {
         return [
             Actions\CreateAction::make(),
+            Actions\Action::make('import')
+                ->label('Import Debtors')
+                ->url(fn () => DebtorResource::getUrl('import'))
+                ->icon('heroicon-o-document-plus'),
         ];
     }
 }

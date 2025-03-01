@@ -17,8 +17,8 @@ class User extends Authenticatable
 {
     use HasFactory,
         SoftDeletes,
-        Notifiable,
-        SendsFilamentPasswordResetLinks;
+        Notifiable;
+//        SendsFilamentPasswordResetLinks;
 
     /**
      * The attributes that are mass assignable.
@@ -83,10 +83,10 @@ class User extends Authenticatable
         ];
     }
 
-    protected static function booted()
-    {
-        static::created(function ($user) {
-            $user->sendPasswordResetLink();
-        });
-    }
+//    protected static function booted()
+//    {
+//        static::created(function ($user) {
+//            $user->sendPasswordResetLink();
+//        });
+//    }
 }

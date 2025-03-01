@@ -4,9 +4,11 @@ namespace App\Filament\Client\Resources\DebtorResource\Pages;
 
 use App\Filament\Client\Resources\DebtorResource;
 use App\Services\Debtor\DebtorService;
+use App\Exports\DebtorTemplateExport;
+use Filament\Actions\Action;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Pages\Page;
+use Filament\Resources\Pages\Page;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Auth;
 use Livewire\WithFileUploads;
@@ -94,26 +96,23 @@ class ImportDebtors extends Page
 
     public function downloadTemplate()
     {
-        return response()->download(
-            storage_path('app/templates/debtors-import-template.xlsx'),
-            'debtors-import-template.xlsx'
-        );
+        return Excel::download(new DebtorTemplateExport(), 'debtors-import-template.xlsx');
     }
 
-    protected function getFormActions(): array
+    protected function getHeaderActions(): array
     {
         return [
-            Forms\Components\Actions\Action::make('submit')
+            Action::make('submit')
                 ->label('Import Debtors')
-                ->submit('submit')
+                ->action('submit')
                 ->color('primary'),
 
-            Forms\Components\Actions\Action::make('download_template')
+            Action::make('download_template')
                 ->label('Download Template')
                 ->action('downloadTemplate')
                 ->color('secondary'),
 
-            Forms\Components\Actions\Action::make('cancel')
+            Action::make('cancel')
                 ->label('Cancel')
                 ->url($this->getResource()::getUrl('index'))
                 ->color('secondary'),

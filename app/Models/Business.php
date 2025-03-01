@@ -26,4 +26,14 @@ class Business extends Model
     {
         return $this->hasMany(BusinessDocument::class);
     }
+
+    public function debtors(): HasMany
+    {
+        return $this->hasMany(Debtor::class);
+    }
+
+    public function debtorsToOthers()
+    {
+        return Debtor::where('kra_pin', $this->registration_number);
+    }
 }

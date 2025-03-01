@@ -162,7 +162,7 @@ class DebtorResource extends Resource
             'edit' => Pages\EditDebtor::route('/{record}/edit'),
             'view' => Pages\ViewDebtor::route('/{record}'),
             'payment' => Pages\UpdatePayment::route('/{record}/payment'),
-//            'import' => Pages\ImportDebtors::route('/import'),
+            'import' => Pages\ImportDebtors::route('/import'),
         ];
     }
 }

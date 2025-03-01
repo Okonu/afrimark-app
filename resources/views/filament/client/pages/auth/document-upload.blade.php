@@ -1,4 +1,4 @@
-<x-filament-panels::page>
+<x-filament-panels::page.simple>
     <div class="max-w-3xl mx-auto">
         <div class="bg-white shadow-md rounded-lg p-6 mb-6">
             <h2 class="text-2xl font-bold text-gray-900 mb-4">

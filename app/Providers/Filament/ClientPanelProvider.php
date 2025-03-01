@@ -2,9 +2,15 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Client\Pages\Auth\BusinessInformation;
 use App\Filament\Client\Pages\Auth\ContactPersonDetails;
+use App\Filament\Client\Pages\Auth\DocumentUpload;
+use App\Filament\Client\Pages\Auth\EmailVerification;
 use App\Filament\Client\Pages\Auth\Login;
 use App\Filament\Client\Pages\Auth\BusinessRegistration;
+use App\Filament\Client\Widgets\BusinessStatsWidget;
+use App\Filament\Client\Widgets\DebtorsListingWidget;
+use App\Filament\Client\Widgets\OnboardingProgressWidget;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
@@ -37,6 +43,11 @@ class ClientPanelProvider extends PanelProvider
             ->discoverPages(in: app_path('Filament/Client/Pages'), for: 'App\\Filament\\Client\\Pages')
             ->pages([
                 Pages\Dashboard::class,
+            ])
+            ->widgets([
+                BusinessStatsWidget::class,
+                OnboardingProgressWidget::class,
+                DebtorsListingWidget::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Client/Widgets'), for: 'App\\Filament\\Client\\Widgets')
             ->middleware([

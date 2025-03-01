@@ -54,7 +54,7 @@ class Login extends BaseLogin
 
     public function getRegisterUrl(): string
     {
-        return route('filament.client.auth.contact-person-details');
+        return route('filament.client.auth.register');
     }
 
     public function getResetPasswordUrl(): string

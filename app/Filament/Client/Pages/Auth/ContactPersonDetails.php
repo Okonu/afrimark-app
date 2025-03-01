@@ -101,7 +101,7 @@ class ContactPersonDetails extends Register
             Auth::login($user);
         }
 
-        return app(RegistrationResponse::class);
+        return $this->redirect($this->getRedirectUrl());
     }
 
     protected function getRedirectUrl(): string
