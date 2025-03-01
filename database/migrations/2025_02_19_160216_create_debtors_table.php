@@ -13,15 +13,15 @@ return new class extends Migration
     {
         Schema::create('debtors', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('business_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('business_id')->constrained('businesses')->onDelete('cascade');
             $table->string('name');
-            $table->string('phone')->nullable();
-            $table->decimal('amount', 10, 2);
-            $table->decimal('amount_paid', 10, 2)->default(0);
-            $table->string('status')->default('pending');
-            $table->text('address')->nullable();
-            $table->text('notes')->nullable();
-            $table->date('due_date')->nullable();
+            $table->string('kra_pin');
+            $table->string('email');
+            $table->decimal('amount_owed', 15, 2);
+            $table->string('invoice_number')->nullable();
+            $table->enum('status', ['pending', 'active', 'disputed', 'paid'])->default('pending');
+            $table->timestamp('listing_goes_live_at')->nullable();
+            $table->timestamp('listed_at')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });

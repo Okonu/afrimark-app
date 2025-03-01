@@ -1,8 +1,4 @@
 <div>
-    @php
-        $hasLogo = true;
-    @endphp
-
     <div class="min-h-screen flex flex-col items-center pt-6 sm:pt-0">
         <div class="w-full sm:max-w-md mt-6 p-6 bg-white shadow-md overflow-hidden sm:rounded-lg">
             <div class="mb-6">
@@ -25,7 +21,7 @@
 
                 <div class="mt-6 flex items-center justify-between">
                     <div class="flex items-center">
-                        <x-filament::link href="{{ route('filament.client.auth.register') }}">
+                        <x-filament::link href="{{ $this->getRegisterUrl() }}">
                             Register new business
                         </x-filament::link>
                     </div>
@@ -43,6 +39,9 @@
                     </div>
                 </div>
             </form>
+
+            <!-- Social Login Buttons -->
+            {{ $this->getSocialLoginButtons() }}
         </div>
     </div>
 </div>

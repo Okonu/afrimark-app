@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Client\Pages\Auth\ContactPersonDetails;
 use App\Filament\Client\Pages\Auth\Login;
 use App\Filament\Client\Pages\Auth\BusinessRegistration;
 use Filament\Http\Middleware\Authenticate;
@@ -27,7 +28,7 @@ class ClientPanelProvider extends PanelProvider
             ->id('client')
             ->path('client')
             ->login(Login::class)
-            ->registration(BusinessRegistration::class)
+            ->registration(ContactPersonDetails::class)
             ->passwordReset()
             ->colors([
                 'primary' => Color::Amber,
