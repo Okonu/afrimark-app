@@ -9,6 +9,7 @@ enum DebtorStatus: string
     case PAID = 'paid';
 
     const ACTIVE = 'active';
+    const DISPUTED = 'disputed';
 
     public function label(): string
     {
