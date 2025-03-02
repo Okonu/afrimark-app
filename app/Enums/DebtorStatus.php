@@ -8,6 +8,8 @@ enum DebtorStatus: string
     case PARTIAL = 'partial';
     case PAID = 'paid';
 
+    const ACTIVE = 'active';
+
     public function label(): string
     {
         return match($this) {

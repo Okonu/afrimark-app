@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Debtor;
 
-use Illuminate\Routing\Controller;
 use App\Exports\DebtorTemplateExport;
+use Illuminate\Routing\Controller;
 use Maatwebsite\Excel\Facades\Excel;
 
 class DebtorTemplateController extends Controller
