@@ -2,9 +2,8 @@
 
 namespace App\Models;
 
-use App\Enums\DocumentStatus;
-use App\Enums\DocumentType;
-use App\Traits\Verifiable;
+use App\Enums\DebtorStatus;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -22,6 +21,9 @@ class Debtor extends Model
         'amount_owed',
         'invoice_number',
         'status',
+        'status_notes',
+        'status_updated_by',
+        'status_updated_at',
         'listing_goes_live_at',
         'listed_at',
     ];
@@ -30,9 +32,9 @@ class Debtor extends Model
         'amount_owed' => 'decimal:2',
         'listing_goes_live_at' => 'datetime',
         'listed_at' => 'datetime',
+        'status' => DebtorStatus::class,
+        'status_updated_at' => 'datetime',
     ];
-
-    // Possible statuses: pending, disputed, active, paid
 
     public function business(): BelongsTo
     {
@@ -49,34 +51,38 @@ class Debtor extends Model
         return $this->hasMany(Dispute::class);
     }
 
+    public function statusUpdatedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'status_updated_by');
+    }
+
     public function hasAllRequiredDocuments(): bool
     {
-        // Check if all required supporting documents are uploaded
         return $this->documents()->count() > 0;
     }
 
     public function isListed(): bool
     {
-        return $this->status === 'active' && $this->listed_at !== null;
+        return $this->status === DebtorStatus::ACTIVE && $this->listed_at !== null;
     }
 
     public function scopeActive($query)
     {
-        return $query->where('status', 'active');
+        return $query->where('status', DebtorStatus::ACTIVE);
     }
 
     public function scopeDisputed($query)
     {
-        return $query->where('status', 'disputed');
+        return $query->where('status', DebtorStatus::DISPUTED);
     }
 
     public function scopePending($query)
     {
-        return $query->where('status', 'pending');
+        return $query->where('status', DebtorStatus::PENDING);
     }
 
     public function scopePaid($query)
     {
-        return $query->where('status', 'paid');
+        return $query->where('status', DebtorStatus::PAID);
     }
 }

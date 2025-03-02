@@ -21,7 +21,7 @@ class ImportDebtors extends Page
 
     protected static string $resource = DebtorResource::class;
 
-    protected static string $view = 'filament.client.resources.debtor-resource.pages.import-debtors';
+    protected static string $view = 'filament.client.resources.debtor-resource.import-debtors';
 
     public $file;
     public ?array $data = [];

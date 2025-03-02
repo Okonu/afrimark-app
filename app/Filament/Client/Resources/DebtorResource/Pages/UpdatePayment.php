@@ -5,32 +5,46 @@ namespace App\Filament\Client\Resources\DebtorResource\Pages;
 use App\Filament\Client\Resources\DebtorResource;
 use App\Models\Debtor;
 use App\Services\Debtor\DebtorService;
-use Closure;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Pages\Page;
+use Filament\Resources\Pages\Page;
 use Filament\Notifications\Notification;
-use Filament\Resources\Pages\EditRecord;
 use Illuminate\Support\Facades\Auth;
 
-class UpdatePayment extends EditRecord
+class UpdatePayment extends Page
 {
     protected static string $resource = DebtorResource::class;
 
     protected static string $view = 'filament.client.resources.debtor-resource.pages.update-payment';
 
-    public string|int|null|\Illuminate\Database\Eloquent\Model $record = null;
+    public ?Debtor $record = null;
 
     public ?array $data = [];
 
-    public function mount(Debtor|string|int $record): void
+    public function mount($record): void
     {
+        if (is_string($record)) {
+            $record = Debtor::find($record);
+        }
+
+        if (!$record || !$record instanceof Debtor) {
+            Notification::make()
+                ->title('Error')
+                ->body('Debtor record not found')
+                ->danger()
+                ->send();
+
+            $this->redirect($this->getResource()::getUrl('index'));
+            return;
+        }
+
         $this->record = $record;
 
         $businessId = Auth::user()->businesses()->first()?->id;
 
         if ($record->business_id !== $businessId) {
             $this->redirect($this->getResource()::getUrl('index'));
+            return;
         }
 
         $this->form->fill([
@@ -56,7 +70,7 @@ class UpdatePayment extends EditRecord
                             ->required()
                             ->prefix('KES')
                             ->rules([
-                                fn () => function (string $attribute, $value, Closure $fail) {
+                                function (string $attribute, $value, \Closure $fail) {
                                     if ($value <= 0) {
                                         $fail('Payment amount must be greater than zero.');
                                     }
@@ -89,11 +103,22 @@ class UpdatePayment extends EditRecord
             ->statePath('data');
     }
 
-    public function submit(DebtorService $debtorService): void
+    public function submit(): void
     {
         $data = $this->form->getState();
 
-        $debtorService->updatePayment($this->record, $data['payment_amount']);
+        if (!$this->record) {
+            Notification::make()
+                ->title('Error')
+                ->body('Debtor record not found')
+                ->danger()
+                ->send();
+
+            $this->redirect($this->getResource()::getUrl('index'));
+            return;
+        }
+
+        app(DebtorService::class)->updatePayment($this->record, $data['payment_amount']);
 
         if (isset($data['payment_document'])) {
             $this->record->documents()->create([

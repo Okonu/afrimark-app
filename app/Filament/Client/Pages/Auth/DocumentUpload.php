@@ -10,13 +10,15 @@ use Filament\Forms\Form;
 use Filament\Pages\SimplePage;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class DocumentUpload extends SimplePage
 {
     protected static string $view = 'filament.client.pages.auth.document-upload';
 
     public ?array $data = [];
-    protected $business;
+
+    public $business;
 
     public function mount(): void
     {
@@ -28,7 +30,14 @@ class DocumentUpload extends SimplePage
         $user = Auth::user();
         $this->business = $user->businesses()->first();
 
+
         if (!$this->business) {
+            Notification::make()
+                ->title('Business Information Required')
+                ->body('Please complete your business profile first.')
+                ->warning()
+                ->send();
+
             $this->redirect(route('filament.client.auth.business-information'));
             return;
         }
@@ -82,6 +91,20 @@ class DocumentUpload extends SimplePage
 
     public function submit(): void
     {
+        $user = Auth::user();
+        $this->business = $user->businesses()->first();
+
+        if (!$this->business) {
+            Notification::make()
+                ->title('Error')
+                ->body('Business information not found. Please complete your business profile first.')
+                ->danger()
+                ->send();
+
+            $this->redirect(route('filament.client.auth.business-information'));
+            return;
+        }
+
         $data = $this->form->getState();
 
         if (isset($data['certificate_of_incorporation'])) {
@@ -107,24 +130,47 @@ class DocumentUpload extends SimplePage
 
     protected function saveDocument($type, $path)
     {
-        $existingDoc = $this->business->documents()
-            ->where('type', $type)
-            ->first();
-
-        if ($existingDoc) {
-            $existingDoc->update([
-                'file_path' => $path,
-                'original_filename' => $path,
-                'status' => 'pending',
-            ]);
-        } else {
-            BusinessDocument::create([
-                'business_id' => $this->business->id,
+        if (!$this->business) {
+            Log::error('Business is null in saveDocument', [
                 'type' => $type,
-                'file_path' => $path,
-                'original_filename' => $path,
-                'status' => 'pending',
+                'path' => $path
             ]);
+            return;
+        }
+
+        try {
+            $existingDoc = $this->business->documents()
+                ->where('type', $type)
+                ->first();
+
+            if ($existingDoc) {
+                $existingDoc->update([
+                    'file_path' => $path,
+                    'original_filename' => $path,
+                    'status' => 'pending',
+                ]);
+
+            } else {
+                $doc = BusinessDocument::create([
+                    'business_id' => $this->business->id,
+                    'type' => $type,
+                    'file_path' => $path,
+                    'original_filename' => $path,
+                    'status' => 'pending',
+                ]);
+
+            }
+        } catch (\Exception $e) {
+            Log::error('Error saving document', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            Notification::make()
+                ->title('Error Saving Document')
+                ->body('An error occurred while saving the document: ' . $e->getMessage())
+                ->danger()
+                ->send();
         }
     }
 

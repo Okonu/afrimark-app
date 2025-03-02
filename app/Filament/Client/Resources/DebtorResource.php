@@ -2,10 +2,12 @@
 
 namespace App\Filament\Client\Resources;
 
+use App\Enums\DebtorStatus;
 use App\Filament\Client\Resources\DebtorResource\Pages;
 use App\Models\Debtor;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -114,28 +116,66 @@ class DebtorResource extends Resource
                         'primary' => 'paid',
                     ]),
 
-                Tables\Columns\TextColumn::make('created_at')
-                    ->label('Created Date')
-                    ->dateTime()
-                    ->sortable(),
+//                Tables\Columns\TextColumn::make('created_at')
+//                    ->label('Created Date')
+//                    ->dateTime()
+//                    ->sortable(),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
                     ->options([
-                        'pending' => 'Pending',
-                        'active' => 'Active',
-                        'disputed' => 'Disputed',
-                        'paid' => 'Paid',
+                        DebtorStatus::PENDING->value => DebtorStatus::PENDING->label(),
+                        DebtorStatus::PARTIAL->value => DebtorStatus::PARTIAL->label(),
+                        DebtorStatus::PAID->value => DebtorStatus::PAID->label(),
                     ]),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\Action::make('update_payment')
-                    ->label('Update Payment')
+                Tables\Actions\Action::make('update_payment_status')
+                    ->label('Update Payment Status')
                     ->color('success')
+                    ->visible(fn (Debtor $record) => $record->status !== DebtorStatus::PAID)
                     ->icon('heroicon-o-currency-dollar')
-                    ->url(fn (Debtor $record): string => DebtorResource::getUrl('payment', ['record' => $record]))
+                    ->form([
+                        Forms\Components\Select::make('status')
+                            ->label('Payment Status')
+                            ->options([
+                                DebtorStatus::PENDING->value => DebtorStatus::PENDING->label(),
+                                DebtorStatus::PARTIAL->value => DebtorStatus::PARTIAL->label(),
+                                DebtorStatus::PAID->value => DebtorStatus::PAID->label(),
+                            ])
+                            ->required(),
+
+                        Forms\Components\Textarea::make('notes')
+                            ->label('Additional Notes')
+                            ->placeholder('Enter any additional information')
+                            ->maxLength(500),
+                    ])
+                    ->action(function (Debtor $record, array $data): void {
+                        // Update the debtor status with additional tracking information
+                        $record->update([
+                            'status' => $data['status'],
+                            'status_notes' => $data['notes'] ?? null,
+                            'status_updated_by' => auth()->id(),
+                            'status_updated_at' => now(),
+                        ]);
+
+//                        // Optionally, create a dispute record if notes are provided
+//                        if (!empty($data['notes'])) {
+//                            $record->disputes()->create([
+//                                'notes' => $data['notes'],
+//                                'status' => $data['status'],
+//                                'user_id' => auth()->id(),
+//                            ]);
+//                        }
+
+                        Notification::make()
+                            ->title('Payment Status Updated')
+                            ->body("The payment status for {$record->name} has been updated to " . DebtorStatus::from($data['status'])->label() . ".")
+                            ->success()
+                            ->send();
+                    })
             ])
             ->bulkActions([
                 Tables\Actions\BulkAction::make('export')

@@ -8,6 +8,7 @@ use App\Models\DebtorDocument;
 use App\Notifications\DebtorListingNotification;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class DebtorService
@@ -141,9 +142,36 @@ class DebtorService
      */
     public function sendDebtorNotification(Debtor $debtor)
     {
-        $notification = new DebtorListingNotification($debtor);
+        try {
+            if (!$debtor->relationLoaded('business')) {
+                $debtor->load('business');
+            }
 
-        Mail::to($debtor->email)->send($notification->toMail(null));
+            $businessName = $debtor->business ? $debtor->business->name : 'A business on our platform';
+
+            $content = view('emails.debtor-listing', [
+                'debtor' => $debtor,
+                'businessName' => $businessName,
+                'amountOwed' => number_format($debtor->amount_owed, 2),
+                'invoiceNumber' => $debtor->invoice_number ?? 'N/A',
+                'disputeUrl' => route('debtor.dispute', ['id' => $debtor->id]),
+                'appName' => config('app.name')
+            ])->render();
+
+            Mail::html($content, function ($message) use ($debtor) {
+                $message->to($debtor->email)
+                    ->subject('Important: Your Business Has Been Listed as a Debtor');
+            });
+
+            \Log::info("Debtor notification sent successfully to: {$debtor->email}");
+        } catch (\Exception $e) {
+            \Log::error("Failed to send debtor notification: " . $e->getMessage());
+
+            Mail::raw("Your business has been listed as a debtor for {$debtor->amount_owed} KES. This listing will become publicly visible in 7 days unless resolved.", function($message) use ($debtor) {
+                $message->to($debtor->email)
+                    ->subject('Important: Your Business Has Been Listed as a Debtor');
+            });
+        }
     }
 
     /**

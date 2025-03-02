@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('business_id')->constrained('businesses')->onDelete('cascade');
             $table->string('name');
             $table->string('kra_pin');
-            $table->string('email');
+            $table->string('email')->unique();
             $table->decimal('amount_owed', 15, 2);
             $table->string('invoice_number')->nullable();
             $table->enum('status', ['pending', 'active', 'disputed', 'paid'])->default('pending');

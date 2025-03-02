@@ -14,7 +14,11 @@ Route::get('/auth/redirect/{provider}', [SocialAuthController::class, 'redirect'
 Route::get('/auth/callback/{provider}', [SocialAuthController::class, 'callback']);
 
 // Business email verification
-Route::get('/business/verify/{token}', [VerificationController::class, 'verify'])->name('business.verify');
+Route::get('verify-email/{token}', [App\Http\Controllers\Business\VerificationController::class, 'verify'])
+    ->name('business.verification.verify');
+
+Route::get('/client/debtors/import', [App\Filament\Client\Resources\DebtorResource\Pages\ImportDebtors::class, '__invoke'])
+    ->name('filament.client.resources.debtors.import');
 
 // Debtor dispute from email
 Route::get('/debtor/dispute/{id}', function ($id) {

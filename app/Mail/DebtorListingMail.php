@@ -41,9 +41,6 @@ class DebtorListingMail extends Mailable implements ShouldQueue
     {
         return new Content(
             view: 'emails.debtor-listing',
-            with: [
-                'debtor' => $this->debtor,
-            ],
         );
     }
 
@@ -55,5 +52,18 @@ class DebtorListingMail extends Mailable implements ShouldQueue
     public function attachments(): array
     {
         return [];
+    }
+
+    /**
+     * Build the message.
+     *
+     * @return $this
+     */
+    public function build()
+    {
+        return $this->view('emails.debtor-listing')
+            ->with([
+                'debtor' => $this->debtor,
+            ]);
     }
 }

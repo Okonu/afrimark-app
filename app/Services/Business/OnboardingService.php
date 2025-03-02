@@ -48,7 +48,12 @@ class OnboardingService
 
         $uploadedDocumentTypes = $business->documents()
             ->whereIn('type', $requiredDocumentTypes)
-            ->pluck('type')
+            ->get()
+            ->map(function ($document) {
+                return $document->type instanceof \App\Enums\DocumentType
+                    ? $document->type->value
+                    : $document->type;
+            })
             ->toArray();
 
         return count(array_intersect($requiredDocumentTypes, $uploadedDocumentTypes)) === count($requiredDocumentTypes);

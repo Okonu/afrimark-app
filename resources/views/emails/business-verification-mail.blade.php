@@ -63,7 +63,7 @@
     <p>Thank you for registering your business on our platform. To complete your registration and ensure the security of your account, please verify your email address by clicking the button below:</p>
 
     <div class="btn-container">
-        <a href="{{ route('business.verify', ['token' => $token]) }}" class="btn">Verify Business Email</a>
+        <a href="{{ route('business.verification.verify', ['token' => $token]) }}">Verify Business Email</a>
     </div>
 
     <p>This verification link will expire in 24 hours.</p>
