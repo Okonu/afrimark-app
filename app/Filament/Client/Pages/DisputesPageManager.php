@@ -5,9 +5,9 @@ namespace App\Filament\Client\Pages;
 use App\Models\Debtor;
 use App\Models\Dispute;
 use Filament\Pages\Page;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Route;
 
 class DisputesPageManager extends Page
 {
@@ -20,9 +20,19 @@ class DisputesPageManager extends Page
 
     public $activeTab = 'disputable-listings';
 
+    // Store the data collections
     public $disputableListings = [];
     public $myDisputes = [];
     public $disputesToRespond = [];
+
+    protected function getViewData(): array
+    {
+        return [
+            'createDisputeRoute' => Route::has('filament.client.resources.disputes.create'),
+            'viewDisputeRoute' => Route::has('filament.client.resources.disputes.view'),
+            'respondDisputeRoute' => Route::has('filament.client.resources.disputes.respond'),
+        ];
+    }
 
     public function mount(): void
     {
@@ -44,6 +54,7 @@ class DisputesPageManager extends Page
 
         Log::info("Loading dispute data for business: " . $business->name);
 
+        // Load disputable listings
         $this->disputableListings = Debtor::query()
             ->where(function($query) use ($business) {
                 $query->where('kra_pin', $business->registration_number)
@@ -61,6 +72,7 @@ class DisputesPageManager extends Page
             Log::info("Found disputable listings: " . $this->disputableListings->pluck('id')->implode(', '));
         }
 
+        // Load my disputes
         $this->myDisputes = Dispute::query()
             ->whereHas('debtor', function ($query) use ($business) {
                 $query->where(function($q) use ($business) {
@@ -73,6 +85,7 @@ class DisputesPageManager extends Page
 
         Log::info("Loaded " . $this->myDisputes->count() . " disputes created by this business");
 
+        // Load disputes to respond
         $this->disputesToRespond = Dispute::query()
             ->whereHas('debtor', function ($query) use ($business) {
                 $query->where('business_id', $business->id);
@@ -87,7 +100,7 @@ class DisputesPageManager extends Page
     /**
      * Get URL for creating a dispute
      */
-    public function getCreateDisputeUrl($debtorId)
+    public function getCreateDisputeUrl($debtorId): string
     {
         return route('filament.client.resources.disputes.create', ['debtor' => $debtorId]);
     }
@@ -95,7 +108,7 @@ class DisputesPageManager extends Page
     /**
      * Get URL for viewing a dispute
      */
-    public function getViewDisputeUrl($disputeId)
+    public function getViewDisputeUrl($disputeId): string
     {
         return route('filament.client.resources.disputes.view', ['record' => $disputeId]);
     }
@@ -103,15 +116,32 @@ class DisputesPageManager extends Page
     /**
      * Get URL for responding to a dispute
      */
-    public function getRespondDisputeUrl($disputeId)
+    public function getRespondDisputeUrl($disputeId): string
     {
         return route('filament.client.resources.disputes.respond', ['record' => $disputeId]);
     }
 
     /**
+     * Format currency
+     */
+    public function formatCurrency($amount): string
+    {
+        return 'KES ' . number_format($amount, 2);
+    }
+
+    /**
+     * Format date
+     */
+    public function formatDate($date): string
+    {
+        if (!$date) return 'N/A';
+        return $date->format('M d, Y H:i');
+    }
+
+    /**
      * Format dispute type for display
      */
-    public function formatDisputeType($type)
+    public function formatDisputeType($type): string
     {
         return match($type) {
             'wrong_amount' => 'Wrong Amount',
@@ -119,14 +149,14 @@ class DisputesPageManager extends Page
             'already_paid' => 'Already Paid',
             'wrong_business' => 'Wrong Business Listed',
             'other' => 'Other',
-            default => $type,
+            default => $type ?? 'Unknown',
         };
     }
 
     /**
      * Get status color for badges
      */
-    public function getStatusColor($status)
+    public function getStatusColor($status): string
     {
         return match($status) {
             'pending' => 'warning',
