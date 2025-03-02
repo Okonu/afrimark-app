@@ -7,9 +7,11 @@ use App\Models\Debtor;
 use App\Models\DebtorDocument;
 use App\Notifications\DebtorListingNotification;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class DebtorService
 {
@@ -22,6 +24,15 @@ class DebtorService
      */
     public function createDebtor(Business $business, array $data)
     {
+        if (($business->registration_number === $data['kra_pin']) ||
+            (strtolower($business->email) === strtolower($data['email']))) {
+            throw new \Exception("A business cannot list itself as a debtor.");
+        }
+
+        $existingBusiness = Business::where('registration_number', $data['kra_pin'])
+            ->orWhere('email', $data['email'])
+            ->first();
+
         $listingGoesLiveAt = Carbon::now()->addDays(7);
 
         $debtor = Debtor::create([
@@ -33,6 +44,7 @@ class DebtorService
             'invoice_number' => $data['invoice_number'] ?? null,
             'status' => 'pending',
             'listing_goes_live_at' => $listingGoesLiveAt,
+            'verification_token' => Str::random(64),
         ]);
 
         if (isset($data['documents']) && is_array($data['documents'])) {
@@ -86,15 +98,17 @@ class DebtorService
             'success' => 0,
             'failed' => 0,
             'debtors' => [],
+            'errors' => [],
         ];
 
-        foreach ($debtors as $debtorData) {
+        foreach ($debtors as $index => $debtorData) {
             try {
                 $debtor = $this->createDebtor($business, $debtorData);
                 $results['success']++;
                 $results['debtors'][] = $debtor->id;
             } catch (\Exception $e) {
                 $results['failed']++;
+                $results['errors'][$index] = $e->getMessage();
             }
         }
 
@@ -149,12 +163,27 @@ class DebtorService
 
             $businessName = $debtor->business ? $debtor->business->name : 'A business on our platform';
 
+            if (!$debtor->verification_token) {
+                $debtor->verification_token = Str::random(64);
+                $debtor->save();
+            }
+
+            $registrationUrl = route('debtor.verify', [
+                'debtor_id' => $debtor->id,
+                'token' => $debtor->verification_token
+            ]);
+
+            $loginUrl = route('filament.client.auth.login', [
+                'redirect' => route('filament.client.pages.disputes-page-manager', ['tab' => 'disputable-listings'])
+            ]);
+
             $content = view('emails.debtor-listing', [
                 'debtor' => $debtor,
                 'businessName' => $businessName,
                 'amountOwed' => number_format($debtor->amount_owed, 2),
                 'invoiceNumber' => $debtor->invoice_number ?? 'N/A',
-                'disputeUrl' => route('debtor.dispute', ['id' => $debtor->id]),
+                'disputeUrl' => $loginUrl,
+                'registrationUrl' => $registrationUrl,
                 'appName' => config('app.name')
             ])->render();
 
@@ -167,6 +196,7 @@ class DebtorService
         } catch (\Exception $e) {
             \Log::error("Failed to send debtor notification: " . $e->getMessage());
 
+            // Fallback plain text email
             Mail::raw("Your business has been listed as a debtor for {$debtor->amount_owed} KES. This listing will become publicly visible in 7 days unless resolved.", function($message) use ($debtor) {
                 $message->to($debtor->email)
                     ->subject('Important: Your Business Has Been Listed as a Debtor');

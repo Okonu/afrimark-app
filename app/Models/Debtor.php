@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class Debtor extends Model
 {
@@ -26,6 +27,7 @@ class Debtor extends Model
         'status_updated_at',
         'listing_goes_live_at',
         'listed_at',
+        'verification_token',
     ];
 
     protected $casts = [
@@ -64,6 +66,20 @@ class Debtor extends Model
     public function isListed(): bool
     {
         return $this->status === DebtorStatus::ACTIVE && $this->listed_at !== null;
+    }
+
+    public function generateVerificationToken(): string
+    {
+        $token = Str::random(64);
+        $this->verification_token = $token;
+        $this->save();
+
+        return $token;
+    }
+
+    public function validateToken(string $token): bool
+    {
+        return $this->verification_token === $token;
     }
 
     public function scopeActive($query)

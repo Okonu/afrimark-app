@@ -12,6 +12,7 @@ use Filament\Forms\Form;
 use Filament\Pages\Auth\Register;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Session;
 use Filament\Http\Responses\Auth\Contracts\RegistrationResponse;
 
 class BusinessInformation extends Register
@@ -21,6 +22,8 @@ class BusinessInformation extends Register
     protected static bool $shouldRegisterNavigation = false;
 
     public ?array $data = [];
+
+    protected ?array $debtorData = null;
 
     public function mount(): void
     {
@@ -37,6 +40,9 @@ class BusinessInformation extends Register
             return;
         }
 
+        // Check if user is coming from a debtor registration link
+        $this->debtorData = Session::get('debtor_registration');
+
         if ($business) {
             $this->form->fill([
                 'business_name' => $business->name,
@@ -44,6 +50,13 @@ class BusinessInformation extends Register
                 'business_phone' => $business->phone,
                 'business_address' => $business->address,
                 'registration_number' => $business->registration_number,
+            ]);
+        } elseif ($this->debtorData) {
+            // Auto-populate from debtor information
+            $this->form->fill([
+                'business_name' => $this->debtorData['name'],
+                'business_email' => $this->debtorData['email'],
+                'registration_number' => $this->debtorData['kra_pin'],
             ]);
         }
     }
@@ -56,6 +69,8 @@ class BusinessInformation extends Register
                     ->label('Business Name')
                     ->required()
                     ->maxLength(255)
+                    ->disabled(fn () => $this->debtorData && isset($this->debtorData['name']))
+                    ->helperText(fn () => $this->debtorData ? 'This business name is linked to your debtor record and cannot be changed.' : null)
                     ->columnSpanFull(),
 
                 TextInput::make('business_email')
@@ -63,6 +78,8 @@ class BusinessInformation extends Register
                     ->email()
                     ->required()
                     ->maxLength(255)
+                    ->disabled(fn () => $this->debtorData && isset($this->debtorData['email']))
+                    ->helperText(fn () => $this->debtorData ? 'This email is linked to your debtor record and cannot be changed.' : null)
                     ->columnSpanFull(),
 
                 TextInput::make('business_phone')
@@ -79,9 +96,11 @@ class BusinessInformation extends Register
                     ->columnSpanFull(),
 
                 TextInput::make('registration_number')
-                    ->label('Business Registration Number')
+                    ->label('Business Registration Number (KRA PIN)')
                     ->required()
                     ->maxLength(255)
+                    ->disabled(fn () => $this->debtorData && isset($this->debtorData['kra_pin']))
+                    ->helperText(fn () => $this->debtorData ? 'This KRA PIN is linked to your debtor record and cannot be changed.' : null)
                     ->columnSpanFull(),
 
                 Checkbox::make('terms_accepted')
@@ -95,6 +114,13 @@ class BusinessInformation extends Register
     public function createOrUpdateBusiness(): void
     {
         $data = $this->form->getState();
+
+        // If coming from debtor registration, ensure the locked fields match
+        if ($this->debtorData) {
+            $data['business_name'] = $this->debtorData['name'];
+            $data['business_email'] = $this->debtorData['email'];
+            $data['registration_number'] = $this->debtorData['kra_pin'];
+        }
 
         $user = Auth::user();
 
@@ -125,6 +151,11 @@ class BusinessInformation extends Register
         }
 
         app(VerificationService::class)->sendBusinessEmailVerification($business);
+
+        // If this is a debtor registration, clear the session data now that we've used it
+        if ($this->debtorData) {
+            Session::forget('debtor_registration');
+        }
 
         Notification::make()
             ->title('Verification Email Sent')

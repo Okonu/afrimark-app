@@ -8,6 +8,7 @@ use Filament\Forms\Form;
 use Filament\Pages\Auth\Register;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Session;
 use Filament\Http\Responses\Auth\Contracts\RegistrationResponse;
 
 class ContactPersonDetails extends Register
@@ -16,8 +17,12 @@ class ContactPersonDetails extends Register
 
     public ?array $data = [];
 
+    protected ?array $debtorData = null;
+
     public function mount(): void
     {
+        $this->debtorData = Session::get('debtor_registration');
+
         if (auth()->check()) {
             $user = auth()->user();
 
@@ -31,6 +36,7 @@ class ContactPersonDetails extends Register
                 'email' => $user->email,
             ]);
         }
+
     }
 
     public function form(Form $form): Form

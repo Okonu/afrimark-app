@@ -3,12 +3,20 @@
 use App\Filament\Client\Pages\Auth\BusinessInformation;
 use App\Filament\Client\Pages\Auth\DocumentUpload;
 use App\Filament\Client\Pages\Auth\EmailVerification;
+use App\Filament\Client\Pages\DisputesPageManager;
 use App\Http\Controllers\Auth\SocialAuthController;
-use App\Http\Controllers\Business\VerificationController;
+use App\Http\Controllers\Debtor\DebtorVerificationController;
 use App\Http\Controllers\WelcomeController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [WelcomeController::class, 'index'])->name('welcome');
+
+Filament\Facades\Filament::registerPages([
+    DisputesPageManager::class,
+]);
+
+Route::get('debtor/verify', [DebtorVerificationController::class, 'verify'])
+    ->name('debtor.verify');
 
 Route::get('/auth/redirect/{provider}', [SocialAuthController::class, 'redirect'])->name('social.login');
 Route::get('/auth/callback/{provider}', [SocialAuthController::class, 'callback']);
@@ -50,6 +58,6 @@ Route::middleware(['web', 'auth'])->group(function () {
 });
 
 Route::middleware(['auth'])->group(function () {
-    Route::get('/debtors/template/download', [\App\Http\Controllers\DebtorTemplateController::class, 'download'])
+    Route::get('/debtors/template/download', [\App\Http\Controllers\Debtor\DebtorTemplateController::class, 'download'])
         ->name('debtors.template.download');
 });

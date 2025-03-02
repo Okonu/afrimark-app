@@ -8,6 +8,7 @@ use App\Filament\Client\Pages\Auth\DocumentUpload;
 use App\Filament\Client\Pages\Auth\EmailVerification;
 use App\Filament\Client\Pages\Auth\Login;
 use App\Filament\Client\Pages\Auth\BusinessRegistration;
+use App\Filament\Client\Pages\DisputesPageManager;
 use App\Filament\Client\Widgets\BusinessStatsWidget;
 use App\Filament\Client\Widgets\DebtorsListingWidget;
 use App\Filament\Client\Widgets\OnboardingProgressWidget;
@@ -43,6 +44,7 @@ class ClientPanelProvider extends PanelProvider
             ->discoverPages(in: app_path('Filament/Client/Pages'), for: 'App\\Filament\\Client\\Pages')
             ->pages([
                 Pages\Dashboard::class,
+//                DisputesPageManager::class,
             ])
             ->widgets([
                 BusinessStatsWidget::class,

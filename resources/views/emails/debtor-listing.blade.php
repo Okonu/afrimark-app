@@ -3,14 +3,14 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>You Have Been Listed as a Debtor</title>
+    <title>Important: Your Business Has Been Listed as a Debtor</title>
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            padding: 0;
-            margin: 0;
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
             color: #333;
-            line-height: 1.5;
+            margin: 0;
+            padding: 0;
         }
         .container {
             max-width: 600px;
@@ -18,68 +18,83 @@
             padding: 20px;
         }
         .header {
+            background-color: #f8f9fa;
+            padding: 20px;
             text-align: center;
-            margin-bottom: 30px;
+            border-bottom: 3px solid #dc3545;
         }
-        h1 {
-            color: #222;
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 20px;
-        }
-        p {
-            margin: 20px 0;
-        }
-        .btn-container {
-            text-align: center;
-            margin: 30px 0;
-        }
-        .btn {
-            display: inline-block;
-            background-color: #dc8b15;
-            color: white;
-            text-decoration: none;
-            padding: 12px 25px;
-            border-radius: 4px;
-            font-weight: 600;
+        .content {
+            padding: 20px;
         }
         .footer {
-            margin-top: 30px;
-            font-size: 14px;
-            color: #666;
-            border-top: 1px solid #eee;
-            padding-top: 20px;
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #6c757d;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #dc3545;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .info-box {
+            background-color: #f8f9fa;
+            border-left: 4px solid #17a2b8;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .warning {
+            color: #dc3545;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="header">
-        <h1>You Have Been Listed as a Debtor</h1>
+        <h1>{{ $appName }}</h1>
+        <h2>Important Notice: Debt Listing</h2>
     </div>
 
-    <p>Dear Business Owner,</p>
+    <div class="content">
+        <p>Dear {{ $debtor->name }},</p>
 
-    <p>This is to inform you that your business has been listed as a debtor on the Afrimark Business Portal by:</p>
+        <p><strong>{{ $businessName }}</strong> has listed your business as a debtor in our system for the amount of <strong>KES {{ $amountOwed }}</strong>.</p>
 
-    <p>
-        <strong>Business Name:</strong> {{ $debtor->business->name ?? 'A business on our platform' }}<br>
-        <strong>Outstanding Amount:</strong> {{ number_format($debtor->amount_owed, 2) }} KES<br>
-        <strong>Invoice Number:</strong> {{ $debtor->invoice_number ?? 'N/A' }}
-    </p>
+        <div class="info-box">
+            <p><strong>Invoice Number:</strong> {{ $invoiceNumber }}</p>
+            <p><strong>Amount Owed:</strong> KES {{ $amountOwed }}</p>
+            <p><strong>Listing Date:</strong> {{ now()->format('j F Y') }}</p>
+        </div>
 
-    <p><strong>Important Notice:</strong> This listing will become publicly visible in 7 days unless resolved.</p>
+        <p class="warning">This listing will become publicly visible in 7 days unless it is resolved or disputed.</p>
 
-    <div class="btn-container">
-        <a href="{{ route('debtor.dispute', ['id' => $debtor->id]) }}" class="btn">Dispute This Listing</a>
+        <p>If you believe this is an error or would like to dispute this claim, you have two options:</p>
+
+        <ol>
+            <li>
+                <strong>If you already have an account:</strong><br>
+                <a href="{{ $disputeUrl }}" class="button">Login & Dispute This Listing</a>
+            </li>
+            <li>
+                <strong>If you don't have an account:</strong><br>
+                <a href="{{ $registrationUrl }}" class="button">Register & Dispute This Listing</a>
+            </li>
+        </ol>
+
+        <p>If you choose to register, your business information (name, email, and KRA PIN) will be pre-filled based on the listing details and cannot be modified. This ensures that your dispute is correctly linked to this listing.</p>
+
+        <p>If you have any questions, please don't hesitate to contact our support team at <a href="mailto:support@example.com">support@example.com</a>.</p>
     </div>
-
-    <p>If you believe this listing is incorrect, please click the button above to submit a dispute. You will need to create an account or log in to proceed.</p>
-
-    <p>If you have any questions, please contact us directly.</p>
 
     <div class="footer">
-        <p>Thanks,<br>{{ config('app.name') }}</p>
+        <p>This is an automated message from {{ $appName }}. Please do not reply to this email.</p>
+        <p>&copy; {{ date('Y') }} {{ $appName }}. All rights reserved.</p>
     </div>
 </div>
 </body>
