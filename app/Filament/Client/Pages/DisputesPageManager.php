@@ -4,22 +4,13 @@ namespace App\Filament\Client\Pages;
 
 use App\Models\Debtor;
 use App\Models\Dispute;
-use App\Models\Business;
 use Filament\Pages\Page;
-use Filament\Forms\Components\Tabs;
-use Filament\Forms\Components\Tabs\Tab;
-use Filament\Resources\Pages\ListRecords\Tab as ListRecordsTab;
-use Filament\Tables;
-use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
-use Filament\Tables\Concerns\InteractsWithTable;
-use Filament\Tables\Contracts\HasTable;
+use Illuminate\Support\Facades\Log;
 
-class DisputesPageManager extends Page implements HasTable
+class DisputesPageManager extends Page
 {
-    use InteractsWithTable;
-
     protected static ?string $navigationIcon = 'heroicon-o-exclamation-triangle';
     protected static ?string $navigationLabel = 'Disputes Management';
     protected static ?int $navigationSort = 4;
@@ -29,225 +20,120 @@ class DisputesPageManager extends Page implements HasTable
 
     public $activeTab = 'disputable-listings';
 
+    public $disputableListings = [];
+    public $myDisputes = [];
+    public $disputesToRespond = [];
+
     public function mount(): void
     {
         $this->activeTab = request()->query('tab', 'disputable-listings');
+        $this->loadData();
     }
 
     /**
-     * Required method for HasTable interface
-     * This base query is not directly used but must be implemented
+     * Load all required data for the current tab
      */
-    protected function getTableQuery(): Builder
-    {
-        // This is a placeholder query since we're using custom tables
-        // Each tab has its own query defined in its respective method
-        $business = Auth::user()->businesses()->first();
-
-        if (!$business) {
-            return Dispute::query()->where('id', 0); // Empty query
-        }
-
-        return Dispute::query()
-            ->where('id', 0); // Empty query, real queries are in specific table methods
-    }
-
-    /**
-     * Required method for HasTable interface
-     */
-    protected function getTableColumns(): array
-    {
-        return []; // Not used directly, each table has its own columns
-    }
-
-    /**
-     * Get disputable listings table
-     * Shows listings where the current business is the debtor and still in dispute window
-     */
-    public function getDisputableListingsTable()
+    public function loadData(): void
     {
         $business = Auth::user()->businesses()->first();
 
         if (!$business) {
-            return null;
+            Log::warning("No business found for user", ['user_id' => Auth::id()]);
+            return;
         }
 
-        return Tables\Table::make($this)
-            ->query(
-                Debtor::query()
-                    ->where(function($query) use ($business) {
-                        $query->where('kra_pin', $business->registration_number)
-                            ->orWhere('email', $business->email);
-                    })
-                    ->where('status', 'pending')
-                    ->where('listing_goes_live_at', '>', now())
-                    ->whereDoesntHave('disputes') // No disputes created yet
-            )
-            ->columns([
-                Tables\Columns\TextColumn::make('business.name')
-                    ->label('Listed By')
-                    ->searchable()
-                    ->sortable(),
+        Log::info("Loading dispute data for business: " . $business->name);
 
-                Tables\Columns\TextColumn::make('amount_owed')
-                    ->label('Amount Claimed')
-                    ->money('KES')
-                    ->sortable(),
+        $this->disputableListings = Debtor::query()
+            ->where(function($query) use ($business) {
+                $query->where('kra_pin', $business->registration_number)
+                    ->orWhereRaw('LOWER(email) = ?', [strtolower($business->email)]);
+            })
+            ->where('status', 'pending')
+            ->where('listing_goes_live_at', '>', now())
+            ->whereDoesntHave('disputes')
+            ->with('business')
+            ->get();
 
-                Tables\Columns\TextColumn::make('invoice_number')
-                    ->label('Invoice Number')
-                    ->searchable(),
+        Log::info("Loaded " . $this->disputableListings->count() . " disputable listings");
 
-                Tables\Columns\TextColumn::make('created_at')
-                    ->label('Listed Date')
-                    ->dateTime()
-                    ->sortable(),
+        if ($this->disputableListings->count() > 0) {
+            Log::info("Found disputable listings: " . $this->disputableListings->pluck('id')->implode(', '));
+        }
 
-                Tables\Columns\TextColumn::make('listing_goes_live_at')
-                    ->label('Dispute Window Closes')
-                    ->dateTime()
-                    ->sortable(),
-            ])
-            ->actions([
-                Tables\Actions\Action::make('create_dispute')
-                    ->label('Create Dispute')
-                    ->color('danger')
-                    ->icon('heroicon-o-exclamation-triangle')
-                    ->url(fn (Debtor $record): string => route('filament.client.resources.disputes.create', ['debtor' => $record->id])),
-            ])
-            ->emptyStateIcon('heroicon-o-document-text')
-            ->emptyStateHeading('No Disputable Listings')
-            ->emptyStateDescription('There are no pending listings against your business within the dispute window.')
-            ->paginated([10, 25, 50]);
+        $this->myDisputes = Dispute::query()
+            ->whereHas('debtor', function ($query) use ($business) {
+                $query->where(function($q) use ($business) {
+                    $q->where('kra_pin', $business->registration_number)
+                        ->orWhereRaw('LOWER(email) = ?', [strtolower($business->email)]);
+                });
+            })
+            ->with(['debtor', 'debtor.business'])
+            ->get();
+
+        Log::info("Loaded " . $this->myDisputes->count() . " disputes created by this business");
+
+        $this->disputesToRespond = Dispute::query()
+            ->whereHas('debtor', function ($query) use ($business) {
+                $query->where('business_id', $business->id);
+            })
+            ->where('status', 'pending')
+            ->with(['debtor'])
+            ->get();
+
+        Log::info("Loaded " . $this->disputesToRespond->count() . " disputes requiring a response");
     }
 
     /**
-     * Get my disputes table
-     * Shows disputes created by the current business
+     * Get URL for creating a dispute
      */
-    public function getMyDisputesTable()
+    public function getCreateDisputeUrl($debtorId)
     {
-        $business = Auth::user()->businesses()->first();
-
-        if (!$business) {
-            return null;
-        }
-
-        return Tables\Table::make($this)
-            ->query(
-                Dispute::query()
-                    ->whereHas('debtor', function ($query) use ($business) {
-                        $query->where(function($q) use ($business) {
-                            $q->where('kra_pin', $business->registration_number)
-                                ->orWhere('email', $business->email);
-                        });
-                    })
-            )
-            ->columns([
-                Tables\Columns\TextColumn::make('debtor.business.name')
-                    ->label('Listed By')
-                    ->searchable()
-                    ->sortable(),
-
-                Tables\Columns\TextColumn::make('debtor.amount_owed')
-                    ->label('Amount Claimed')
-                    ->money('KES')
-                    ->sortable(),
-
-                Tables\Columns\TextColumn::make('dispute_type')
-                    ->label('Dispute Reason')
-                    ->formatStateUsing(fn (string $state): string => match($state) {
-                        'wrong_amount' => 'Wrong Amount',
-                        'no_debt' => 'No Debt Exists',
-                        'already_paid' => 'Already Paid',
-                        'wrong_business' => 'Wrong Business Listed',
-                        'other' => 'Other',
-                        default => $state,
-                    }),
-
-                Tables\Columns\BadgeColumn::make('status')
-                    ->colors([
-                        'warning' => 'pending',
-                        'primary' => 'under_review',
-                        'success' => 'resolved_approved',
-                        'danger' => 'resolved_rejected',
-                    ]),
-
-                Tables\Columns\TextColumn::make('created_at')
-                    ->label('Dispute Date')
-                    ->dateTime()
-                    ->sortable(),
-            ])
-            ->actions([
-                Tables\Actions\ViewAction::make()
-                    ->url(fn (Dispute $record): string => route('filament.client.resources.disputes.view', ['record' => $record->id])),
-            ])
-            ->emptyStateIcon('heroicon-o-document-text')
-            ->emptyStateHeading('No Disputes Created')
-            ->emptyStateDescription('You have not created any disputes yet.')
-            ->paginated([10, 25, 50]);
+        return route('filament.client.resources.disputes.create', ['debtor' => $debtorId]);
     }
 
     /**
-     * Get disputes to respond table
-     * Shows disputes where the current business is the lister and needs to respond
+     * Get URL for viewing a dispute
      */
-    public function getDisputesToRespondTable()
+    public function getViewDisputeUrl($disputeId)
     {
-        $business = Auth::user()->businesses()->first();
+        return route('filament.client.resources.disputes.view', ['record' => $disputeId]);
+    }
 
-        if (!$business) {
-            return null;
-        }
+    /**
+     * Get URL for responding to a dispute
+     */
+    public function getRespondDisputeUrl($disputeId)
+    {
+        return route('filament.client.resources.disputes.respond', ['record' => $disputeId]);
+    }
 
-        return Tables\Table::make($this)
-            ->query(
-                Dispute::query()
-                    ->whereHas('debtor', function ($query) use ($business) {
-                        $query->where('business_id', $business->id);
-                    })
-                    ->where('status', 'pending')
-            )
-            ->columns([
-                Tables\Columns\TextColumn::make('debtor.name')
-                    ->label('Debtor Business')
-                    ->searchable()
-                    ->sortable(),
+    /**
+     * Format dispute type for display
+     */
+    public function formatDisputeType($type)
+    {
+        return match($type) {
+            'wrong_amount' => 'Wrong Amount',
+            'no_debt' => 'No Debt Exists',
+            'already_paid' => 'Already Paid',
+            'wrong_business' => 'Wrong Business Listed',
+            'other' => 'Other',
+            default => $type,
+        };
+    }
 
-                Tables\Columns\TextColumn::make('debtor.amount_owed')
-                    ->label('Amount Claimed')
-                    ->money('KES')
-                    ->sortable(),
-
-                Tables\Columns\TextColumn::make('dispute_type')
-                    ->label('Dispute Reason')
-                    ->formatStateUsing(fn (string $state): string => match($state) {
-                        'wrong_amount' => 'Wrong Amount',
-                        'no_debt' => 'No Debt Exists',
-                        'already_paid' => 'Already Paid',
-                        'wrong_business' => 'Wrong Business Listed',
-                        'other' => 'Other',
-                        default => $state,
-                    }),
-
-                Tables\Columns\TextColumn::make('created_at')
-                    ->label('Dispute Date')
-                    ->dateTime()
-                    ->sortable(),
-            ])
-            ->actions([
-                Tables\Actions\Action::make('respond')
-                    ->label('Respond')
-                    ->icon('heroicon-o-chat-bubble-left')
-                    ->color('primary')
-                    ->url(fn (Dispute $record): string => route('filament.client.resources.disputes.respond', ['record' => $record->id])),
-
-                Tables\Actions\ViewAction::make()
-                    ->url(fn (Dispute $record): string => route('filament.client.resources.disputes.view', ['record' => $record->id])),
-            ])
-            ->emptyStateIcon('heroicon-o-document-text')
-            ->emptyStateHeading('No Disputes To Respond')
-            ->emptyStateDescription('There are no pending disputes that require your response.')
-            ->paginated([10, 25, 50]);
+    /**
+     * Get status color for badges
+     */
+    public function getStatusColor($status)
+    {
+        return match($status) {
+            'pending' => 'warning',
+            'under_review' => 'primary',
+            'resolved_approved' => 'success',
+            'resolved_rejected' => 'danger',
+            default => 'secondary',
+        };
     }
 }
