@@ -20,6 +20,8 @@ Route::post('invoices', [InvoiceController::class, 'store']);
 Route::get('invoices/{invoice_number}', [InvoiceController::class, 'show']);
 
 // Debtor endpoints
+Route::get('debtors', [DebtorController::class, 'index']);
+Route::get('debtors/search', [DebtorController::class, 'search']);
 Route::get('debtors/{kra_pin}', [DebtorController::class, 'show']);
 
 Route::get('debtor/verify', [DebtorVerificationController::class, 'verify'])
