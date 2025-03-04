@@ -4,6 +4,7 @@ use App\Filament\Client\Pages\Auth\BusinessInformation;
 use App\Filament\Client\Pages\Auth\DocumentUpload;
 use App\Filament\Client\Pages\Auth\EmailVerification;
 use App\Filament\Client\Pages\DisputesPageManager;
+use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\Auth\SocialAuthController;
 use App\Http\Controllers\Debtor\DebtorVerificationController;
 use App\Http\Controllers\WelcomeController;
@@ -14,6 +15,12 @@ Route::get('/', [WelcomeController::class, 'index'])->name('welcome');
 Filament\Facades\Filament::registerPages([
     DisputesPageManager::class,
 ]);
+
+Route::post('invoices', [InvoiceController::class, 'store']);
+Route::get('invoices/{invoice_number}', [InvoiceController::class, 'show']);
+
+// Debtor endpoints
+Route::get('debtors/{kra_pin}', [DebtorController::class, 'show']);
 
 Route::get('debtor/verify', [DebtorVerificationController::class, 'verify'])
     ->name('debtor.verify');
