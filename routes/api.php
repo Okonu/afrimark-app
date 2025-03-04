@@ -8,8 +8,8 @@ use Illuminate\Support\Facades\Route;
 // Invoice endpoints
 Route::post('invoices', [InvoiceController::class, 'store']);
 Route::get('invoices/{invoice_number}', [InvoiceController::class, 'show']);
-Route::get('invoices/by-debtor/{kra_pin}', [InvoiceController::class, 'getByDebtorKra']);
-Route::get('invoices/by-business/{kra_pin}', [InvoiceController::class, 'getByBusinessKra']);
+Route::get('invoices/debtor/{kra_pin}', [InvoiceController::class, 'getByDebtorKra']);
+Route::get('invoices/business/{kra_pin}', [InvoiceController::class, 'getByBusinessKra']);
 
 // Debtor endpoints
 Route::get('debtors', [DebtorController::class, 'index']);
