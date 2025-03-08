@@ -22,21 +22,26 @@ class DebtorController extends Controller
             ], 404);
         }
 
-        // Load business relationships without invoices
         $debtor->load('businesses');
 
-        // Format business data
         $businessData = [];
         foreach ($debtor->businesses as $business) {
             $businessData[] = [
                 'business_id' => $business->id,
                 'business_name' => $business->name,
                 'business_kra_pin' => $business->registration_number,
-                'amount_owed' => $business->pivot->amount_owed
+                'amount_owed' => $business->pivot->amount_owed,
+                'metrics' => [
+                    'average_payment_terms' => $business->pivot->average_payment_terms,
+                    'median_payment_terms' => $business->pivot->median_payment_terms,
+                    'average_days_overdue' => $business->pivot->average_days_overdue,
+                    'median_days_overdue' => $business->pivot->median_days_overdue,
+                    'average_dbt_ratio' => $business->pivot->average_dbt_ratio,
+                    'median_dbt_ratio' => $business->pivot->median_dbt_ratio,
+                ]
             ];
         }
 
-        // Check if this debtor is also a business
         $isAlsoBusiness = $debtor->isBusiness();
         $businessRecord = $isAlsoBusiness ? $debtor->asBusiness() : null;
 
@@ -65,7 +70,6 @@ class DebtorController extends Controller
     {
         $query = Debtor::with('businesses');
 
-        // Apply filters if provided
         if ($request->has('status')) {
             $query->where('status', $request->status);
         }
@@ -76,18 +80,24 @@ class DebtorController extends Controller
             });
         }
 
-        // Apply pagination
         $perPage = $request->per_page ?? 15;
         $debtors = $query->paginate($perPage);
 
-        // Format the response
         $formattedDebtors = $debtors->map(function($debtor) {
             $businessData = $debtor->businesses->map(function($business) {
                 return [
                     'business_id' => $business->id,
                     'business_name' => $business->name,
                     'business_kra_pin' => $business->registration_number,
-                    'amount_owed' => $business->pivot->amount_owed
+                    'amount_owed' => $business->pivot->amount_owed,
+                    'metrics' => [
+                        'average_payment_terms' => $business->pivot->average_payment_terms,
+                        'median_payment_terms' => $business->pivot->median_payment_terms,
+                        'average_days_overdue' => $business->pivot->average_days_overdue,
+                        'median_days_overdue' => $business->pivot->median_days_overdue,
+                        'average_dbt_ratio' => $business->pivot->average_dbt_ratio,
+                        'median_dbt_ratio' => $business->pivot->median_dbt_ratio,
+                    ]
                 ];
             });
 
@@ -132,14 +142,21 @@ class DebtorController extends Controller
             ->limit(10)
             ->get();
 
-        // Format the response similar to index method
         $formattedDebtors = $debtors->map(function($debtor) {
             $businessData = $debtor->businesses->map(function($business) {
                 return [
                     'business_id' => $business->id,
                     'business_name' => $business->name,
                     'business_kra_pin' => $business->registration_number,
-                    'amount_owed' => $business->pivot->amount_owed
+                    'amount_owed' => $business->pivot->amount_owed,
+                    'metrics' => [
+                        'average_payment_terms' => $business->pivot->average_payment_terms,
+                        'median_payment_terms' => $business->pivot->median_payment_terms,
+                        'average_days_overdue' => $business->pivot->average_days_overdue,
+                        'median_days_overdue' => $business->pivot->median_days_overdue,
+                        'average_dbt_ratio' => $business->pivot->average_dbt_ratio,
+                        'median_dbt_ratio' => $business->pivot->median_dbt_ratio,
+                    ]
                 ];
             });
 

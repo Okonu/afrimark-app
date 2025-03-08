@@ -13,11 +13,23 @@ class BusinessDebtor extends Pivot
     protected $fillable = [
         'business_id',
         'debtor_id',
-        'amount_owed'
+        'amount_owed',
+        'average_payment_terms',
+        'median_payment_terms',
+        'average_days_overdue',
+        'median_days_overdue',
+        'average_dbt_ratio',
+        'median_dbt_ratio'
     ];
 
     protected $casts = [
         'amount_owed' => 'decimal:2',
+        'average_payment_terms' => 'decimal:2',
+        'median_payment_terms' => 'decimal:2',
+        'average_days_overdue' => 'decimal:2',
+        'median_days_overdue' => 'decimal:2',
+        'average_dbt_ratio' => 'decimal:4',
+        'median_dbt_ratio' => 'decimal:4',
     ];
 
     public function business(): BelongsTo

@@ -42,5 +42,7 @@ class BusinessSeeder extends Seeder
         foreach ($businesses as $business) {
             Business::create($business);
         }
+
+        Business::factory()->count(47)->create();
     }
 }

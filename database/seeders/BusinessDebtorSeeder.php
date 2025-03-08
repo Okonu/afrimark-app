@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Business;
 use App\Models\Debtor;
+use App\Services\Calculations\BusinessDebtorMetricsCalculator;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -16,124 +17,110 @@ class BusinessDebtorSeeder extends Seeder
     {
         $now = now();
 
-        // Get our businesses
-        $acme = Business::where('registration_number', 'A123456789X')->first();
-        $xyz = Business::where('registration_number', 'B987654321Y')->first();
-        $savanna = Business::where('registration_number', 'C654321987Z')->first();
+        $businesses = Business::all();
 
-        // Get all debtors
         $debtors = Debtor::all();
 
-        // First 10 debtors primarily for Acme
-        $acmeDebtors = $debtors->take(10);
-        foreach ($acmeDebtors as $debtor) {
-            DB::table('business_debtor')->insert([
-                'business_id' => $acme->id,
-                'debtor_id' => $debtor->id,
-                'amount_owed' => rand(5000, 50000) / 100, // Random amount between 50.00 and 500.00
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
+        $businessesToMakeDebtors = $businesses->take(50);
+
+        foreach ($businessesToMakeDebtors as $business) {
+
+            $existingDebtor = Debtor::where('kra_pin', $business->registration_number)->first();
+
+            if (!$existingDebtor) {
+                Debtor::create([
+                    'name' => $business->name,
+                    'kra_pin' => $business->registration_number,
+                    'email' => $business->email,
+                    'status' => 'active',
+                    'status_updated_at' => $now,
+                    'listed_at' => $now->copy()->subDays(rand(1, 30)),
+                ]);
+            }
         }
 
-        // Next 10 debtors primarily for XYZ
-        $xyzDebtors = $debtors->slice(10, 10);
-        foreach ($xyzDebtors as $debtor) {
-            DB::table('business_debtor')->insert([
-                'business_id' => $xyz->id,
-                'debtor_id' => $debtor->id,
-                'amount_owed' => rand(5000, 50000) / 100,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
+        foreach ($businesses as $business) {
+            $debtorCount = rand(5, 20);
+            $randomDebtors = $debtors->random($debtorCount);
+
+            foreach ($randomDebtors as $debtor) {
+                if ($business->registration_number === $debtor->kra_pin) {
+                    continue;
+                }
+
+                DB::table('business_debtor')->insert([
+                    'business_id' => $business->id,
+                    'debtor_id' => $debtor->id,
+                    'amount_owed' => rand(10000, 1000000) / 100,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            }
         }
 
-        // Last 10 debtors primarily for Savanna
-        $savannaDebtors = $debtors->slice(20, 10);
-        foreach ($savannaDebtors as $debtor) {
-            DB::table('business_debtor')->insert([
-                'business_id' => $savanna->id,
-                'debtor_id' => $debtor->id,
-                'amount_owed' => rand(5000, 50000) / 100,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
+        for ($i = 0; $i < count($businessesToMakeDebtors) - 1; $i++) {
+            $business1 = $businessesToMakeDebtors[$i];
+            $business2 = $businessesToMakeDebtors[$i + 1];
+
+            $debtor1 = Debtor::where('kra_pin', $business1->registration_number)->first();
+            $debtor2 = Debtor::where('kra_pin', $business2->registration_number)->first();
+
+            if ($debtor1 && $debtor2) {
+                DB::table('business_debtor')->updateOrInsert(
+                    [
+                        'business_id' => $business2->id,
+                        'debtor_id' => $debtor1->id,
+                    ],
+                    [
+                        'amount_owed' => rand(10000, 1000000) / 100,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]
+                );
+
+                DB::table('business_debtor')->updateOrInsert(
+                    [
+                        'business_id' => $business1->id,
+                        'debtor_id' => $debtor2->id,
+                    ],
+                    [
+                        'amount_owed' => rand(10000, 1000000) / 100,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]
+                );
+            }
         }
 
-        // Create cross-business relationships for some debtors
+        $firstBusiness = $businessesToMakeDebtors->first();
+        $lastBusiness = $businessesToMakeDebtors->last();
+        $firstDebtor = Debtor::where('kra_pin', $firstBusiness->registration_number)->first();
+        $lastDebtor = Debtor::where('kra_pin', $lastBusiness->registration_number)->first();
 
-        // Some Acme debtors also owe to XYZ
-        $crossDebtors1 = $acmeDebtors->random(3);
-        foreach ($crossDebtors1 as $debtor) {
-            DB::table('business_debtor')->insert([
-                'business_id' => $xyz->id,
-                'debtor_id' => $debtor->id,
-                'amount_owed' => rand(5000, 50000) / 100,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-        }
+        if ($firstDebtor && $lastDebtor) {
+            DB::table('business_debtor')->updateOrInsert(
+                [
+                    'business_id' => $firstBusiness->id,
+                    'debtor_id' => $lastDebtor->id,
+                ],
+                [
+                    'amount_owed' => rand(10000, 1000000) / 100,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]
+            );
 
-        // Some XYZ debtors also owe to Savanna
-        $crossDebtors2 = $xyzDebtors->random(3);
-        foreach ($crossDebtors2 as $debtor) {
-            DB::table('business_debtor')->insert([
-                'business_id' => $savanna->id,
-                'debtor_id' => $debtor->id,
-                'amount_owed' => rand(5000, 50000) / 100,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-        }
-
-        // Some Savanna debtors also owe to Acme
-        $crossDebtors3 = $savannaDebtors->random(3);
-        foreach ($crossDebtors3 as $debtor) {
-            DB::table('business_debtor')->insert([
-                'business_id' => $acme->id,
-                'debtor_id' => $debtor->id,
-                'amount_owed' => rand(5000, 50000) / 100,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-        }
-
-        // Handle the special case where businesses are also debtors to each other
-
-        // Acme is a debtor to XYZ
-        $acmeAsDebtor = Debtor::where('kra_pin', 'A123456789X')->first();
-        if ($acmeAsDebtor) {
-            DB::table('business_debtor')->insert([
-                'business_id' => $xyz->id,
-                'debtor_id' => $acmeAsDebtor->id,
-                'amount_owed' => 75000 / 100, // 750.00
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-        }
-
-        // XYZ is a debtor to Savanna
-        $xyzAsDebtor = Debtor::where('kra_pin', 'B987654321Y')->first();
-        if ($xyzAsDebtor) {
-            DB::table('business_debtor')->insert([
-                'business_id' => $savanna->id,
-                'debtor_id' => $xyzAsDebtor->id,
-                'amount_owed' => 85000 / 100, // 850.00
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-        }
-
-        // Savanna is a debtor to Acme
-        $savannaAsDebtor = Debtor::where('kra_pin', 'C654321987Z')->first();
-        if ($savannaAsDebtor) {
-            DB::table('business_debtor')->insert([
-                'business_id' => $acme->id,
-                'debtor_id' => $savannaAsDebtor->id,
-                'amount_owed' => 65000 / 100, // 650.00
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
+            DB::table('business_debtor')->updateOrInsert(
+                [
+                    'business_id' => $lastBusiness->id,
+                    'debtor_id' => $firstDebtor->id,
+                ],
+                [
+                    'amount_owed' => rand(10000, 1000000) / 100,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]
+            );
         }
     }
 }

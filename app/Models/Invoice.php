@@ -19,6 +19,9 @@ class Invoice extends Model
         'due_date',
         'due_amount',
         'invoice_amount',
+        'payment_terms',
+        'days_overdue',
+        'dbt_ratio'
     ];
 
     protected $casts = [
@@ -26,6 +29,7 @@ class Invoice extends Model
         'due_date' => 'date',
         'due_amount' => 'decimal:2',
         'invoice_amount' => 'decimal:2',
+        'dbt_ratio' => 'decimal:4',
     ];
 
     public function debtor(): BelongsTo

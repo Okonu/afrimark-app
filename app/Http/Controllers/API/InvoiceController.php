@@ -13,11 +13,49 @@ use Illuminate\Support\Facades\Validator;
 class InvoiceController extends Controller
 {
     /**
+     * List all invoices with pagination
+     */
+    public function index(Request $request)
+    {
+        $query = Invoice::with(['business:id,name,registration_number', 'debtor:id,name,kra_pin,status']);
+
+        if ($request->has('business_id')) {
+            $query->where('business_id', $request->business_id);
+        }
+
+        if ($request->has('debtor_id')) {
+            $query->where('debtor_id', $request->debtor_id);
+        }
+
+        if ($request->has('is_overdue')) {
+            $isOverdue = $request->boolean('is_overdue');
+            if ($isOverdue) {
+                $query->where('due_date', '<', now());
+            } else {
+                $query->where('due_date', '>=', now());
+            }
+        }
+
+        $perPage = $request->per_page ?? 15;
+        $invoices = $query->orderBy('invoice_date', 'desc')->paginate($perPage);
+
+        return response()->json([
+            'success' => true,
+            'data' => $invoices,
+            'pagination' => [
+                'total' => $invoices->total(),
+                'per_page' => $invoices->perPage(),
+                'current_page' => $invoices->currentPage(),
+                'last_page' => $invoices->lastPage()
+            ]
+        ]);
+    }
+
+    /**
      * Get invoices by debtor KRA PIN.
      */
     public function getByDebtorKra($kra_pin)
     {
-        // Find the debtor by KRA PIN
         $debtor = Debtor::where('kra_pin', $kra_pin)->first();
 
         if (!$debtor) {
@@ -27,13 +65,11 @@ class InvoiceController extends Controller
             ], 404);
         }
 
-        // Get all invoices for this debtor
         $invoices = Invoice::where('debtor_id', $debtor->id)
             ->with(['business:id,name,registration_number,email,phone'])
             ->orderBy('invoice_date', 'desc')
             ->get();
 
-        // Format the response
         $formattedInvoices = $invoices->map(function($invoice) {
             return [
                 'id' => $invoice->id,
@@ -42,6 +78,9 @@ class InvoiceController extends Controller
                 'due_date' => $invoice->due_date,
                 'invoice_amount' => $invoice->invoice_amount,
                 'due_amount' => $invoice->due_amount,
+                'payment_terms' => $invoice->payment_terms,
+                'days_overdue' => $invoice->days_overdue,
+                'dbt_ratio' => $invoice->dbt_ratio,
                 'business' => [
                     'id' => $invoice->business->id,
                     'name' => $invoice->business->name,
@@ -54,8 +93,24 @@ class InvoiceController extends Controller
             ];
         });
 
-        // Calculate total debt
         $totalDebt = $invoices->sum('due_amount');
+
+        $businessRelationships = DB::table('business_debtor')
+            ->where('debtor_id', $debtor->id)
+            ->join('businesses', 'businesses.id', '=', 'business_debtor.business_id')
+            ->select([
+                'businesses.id as business_id',
+                'businesses.name as business_name',
+                'businesses.registration_number as business_kra_pin',
+                'amount_owed',
+                'average_payment_terms',
+                'median_payment_terms',
+                'average_days_overdue',
+                'median_days_overdue',
+                'average_dbt_ratio',
+                'median_dbt_ratio'
+            ])
+            ->get();
 
         return response()->json([
             'success' => true,
@@ -68,6 +123,7 @@ class InvoiceController extends Controller
                     'status' => $debtor->status
                 ],
                 'invoices' => $formattedInvoices,
+                'business_relationships' => $businessRelationships,
                 'total_count' => $formattedInvoices->count(),
                 'total_debt' => $totalDebt
             ]
@@ -79,7 +135,6 @@ class InvoiceController extends Controller
      */
     public function getByBusinessKra($kra_pin)
     {
-        // Find the business by KRA PIN
         $business = Business::where('registration_number', $kra_pin)->first();
 
         if (!$business) {
@@ -89,13 +144,11 @@ class InvoiceController extends Controller
             ], 404);
         }
 
-        // Get all invoices issued by this business
         $invoices = Invoice::where('business_id', $business->id)
             ->with(['debtor:id,name,kra_pin,email,status'])
             ->orderBy('invoice_date', 'desc')
             ->get();
 
-        // Format the response
         $formattedInvoices = $invoices->map(function($invoice) {
             return [
                 'id' => $invoice->id,
@@ -104,6 +157,9 @@ class InvoiceController extends Controller
                 'due_date' => $invoice->due_date->format('Y-m-d'),
                 'invoice_amount' => $invoice->invoice_amount,
                 'due_amount' => $invoice->due_amount,
+                'payment_terms' => $invoice->payment_terms,
+                'days_overdue' => $invoice->days_overdue,
+                'dbt_ratio' => $invoice->dbt_ratio,
                 'debtor' => [
                     'id' => $invoice->debtor->id,
                     'name' => $invoice->debtor->name,
@@ -116,13 +172,17 @@ class InvoiceController extends Controller
             ];
         });
 
-        // Group invoices by debtor for a more organized response
         $groupedByDebtor = $formattedInvoices->groupBy('debtor.id');
         $debtorSummaries = [];
 
         foreach ($groupedByDebtor as $debtorId => $debtorInvoices) {
             $firstInvoice = $debtorInvoices->first();
             $totalOwed = $debtorInvoices->sum('due_amount');
+
+            $relationship = DB::table('business_debtor')
+                ->where('business_id', $business->id)
+                ->where('debtor_id', $debtorId)
+                ->first();
 
             $debtorSummaries[] = [
                 'debtor' => [
@@ -131,6 +191,14 @@ class InvoiceController extends Controller
                     'kra_pin' => $firstInvoice['debtor']['kra_pin'],
                     'email' => $firstInvoice['debtor']['email'],
                     'status' => $firstInvoice['debtor']['status']
+                ],
+                'metrics' => [
+                    'average_payment_terms' => $relationship->average_payment_terms ?? null,
+                    'median_payment_terms' => $relationship->median_payment_terms ?? null,
+                    'average_days_overdue' => $relationship->average_days_overdue ?? null,
+                    'median_days_overdue' => $relationship->median_days_overdue ?? null,
+                    'average_dbt_ratio' => $relationship->average_dbt_ratio ?? null,
+                    'median_dbt_ratio' => $relationship->median_dbt_ratio ?? null,
                 ],
                 'invoices' => $debtorInvoices,
                 'invoice_count' => $debtorInvoices->count(),
@@ -154,16 +222,15 @@ class InvoiceController extends Controller
             ]
         ]);
     }
+
     /**
      * Store invoice records.
      * Can handle both single and multiple records.
      */
     public function store(Request $request)
     {
-        // Check if data is an array of records or a single record
         $data = $request->has('invoices') ? $request->input('invoices') : [$request->all()];
 
-        // Results tracking
         $results = [
             'success' => true,
             'created' => [],
@@ -171,9 +238,7 @@ class InvoiceController extends Controller
             'errors' => []
         ];
 
-        // Process each invoice record
         foreach ($data as $index => $invoiceData) {
-            // Define validation rules
             $validator = Validator::make($invoiceData, [
                 'supplier_id' => 'required|string', // Business KRA PIN
                 'debtor_id' => 'required|string',   // Debtor KRA PIN
@@ -194,10 +259,8 @@ class InvoiceController extends Controller
             }
 
             try {
-                // Check if invoice number already exists
                 $existingInvoice = Invoice::where('invoice_number', $invoiceData['invoice_reference'])->first();
                 if ($existingInvoice) {
-                    // Instead of treating as an error, add to a separate 'skipped' category
                     if (!isset($results['skipped'])) {
                         $results['skipped'] = [];
                     }
@@ -210,7 +273,6 @@ class InvoiceController extends Controller
                     continue;
                 }
 
-                // Find the business (supplier) - don't create if it doesn't exist
                 $business = Business::where('registration_number', $invoiceData['supplier_id'])->first();
                 if (!$business) {
                     $results['errors'][] = [
@@ -221,7 +283,6 @@ class InvoiceController extends Controller
                     continue;
                 }
 
-                // Find the debtor - don't create if it doesn't exist
                 $debtor = Debtor::where('kra_pin', $invoiceData['debtor_id'])->first();
                 if (!$debtor) {
                     $results['errors'][] = [
@@ -232,7 +293,6 @@ class InvoiceController extends Controller
                     continue;
                 }
 
-                // Check if debtor name matches
                 if ($debtor->name !== $invoiceData['debtor_name']) {
                     $results['errors'][] = [
                         'index' => $index,
@@ -242,10 +302,8 @@ class InvoiceController extends Controller
                     continue;
                 }
 
-                // Process the valid invoice
                 DB::beginTransaction();
                 try {
-                    // Create the invoice
                     $invoice = Invoice::create([
                         'business_id' => $business->id,
                         'debtor_id' => $debtor->id,
@@ -253,17 +311,15 @@ class InvoiceController extends Controller
                         'invoice_date' => $invoiceData['invoice_date'],
                         'due_date' => $invoiceData['due_date'],
                         'invoice_amount' => $invoiceData['invoice_amount'],
-                        'due_amount' => $invoiceData['invoice_amount'], // Initially set to invoice amount
+                        'due_amount' => $invoiceData['invoice_amount'],
                     ]);
 
-                    // Create or update the business_debtor relationship
                     $relation = DB::table('business_debtor')
                         ->where('business_id', $business->id)
                         ->where('debtor_id', $debtor->id)
                         ->first();
 
                     if ($relation) {
-                        // Update existing relation by adding the new invoice amount
                         DB::table('business_debtor')
                             ->where('id', $relation->id)
                             ->update([
@@ -271,7 +327,6 @@ class InvoiceController extends Controller
                                 'updated_at' => now()
                             ]);
                     } else {
-                        // Create new relation
                         DB::table('business_debtor')->insert([
                             'business_id' => $business->id,
                             'debtor_id' => $debtor->id,
@@ -306,7 +361,6 @@ class InvoiceController extends Controller
             }
         }
 
-        // Update success flag if we have any errors
         if (!empty($results['errors'])) {
             $results['success'] = false;
         }
@@ -328,26 +382,41 @@ class InvoiceController extends Controller
             ], 404);
         }
 
-        // Load related data
         $invoice->load('business', 'debtor');
 
-        // Get debt relationship details
         $businessDebtor = DB::table('business_debtor')
             ->where('business_id', $invoice->business_id)
             ->where('debtor_id', $invoice->debtor_id)
             ->first();
 
-        // Get other invoices from the same business to this debtor
         $relatedInvoices = Invoice::where('business_id', $invoice->business_id)
             ->where('debtor_id', $invoice->debtor_id)
             ->where('id', '!=', $invoice->id)
-            ->get(['id', 'invoice_number', 'invoice_date', 'due_date', 'invoice_amount', 'due_amount']);
+            ->get([
+                'id',
+                'invoice_number',
+                'invoice_date',
+                'due_date',
+                'invoice_amount',
+                'due_amount',
+                'payment_terms',
+                'days_overdue',
+                'dbt_ratio'
+            ]);
 
         return response()->json([
             'success' => true,
             'data' => [
                 'invoice' => $invoice,
                 'total_amount_owed' => $businessDebtor ? $businessDebtor->amount_owed : 0,
+                'business_debtor_metrics' => $businessDebtor ? [
+                    'average_payment_terms' => $businessDebtor->average_payment_terms,
+                    'median_payment_terms' => $businessDebtor->median_payment_terms,
+                    'average_days_overdue' => $businessDebtor->average_days_overdue,
+                    'median_days_overdue' => $businessDebtor->median_days_overdue,
+                    'average_dbt_ratio' => $businessDebtor->average_dbt_ratio,
+                    'median_dbt_ratio' => $businessDebtor->median_dbt_ratio,
+                ] : null,
                 'related_invoices' => $relatedInvoices
             ]
         ]);
