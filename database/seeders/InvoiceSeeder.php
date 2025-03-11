@@ -47,7 +47,7 @@ class InvoiceSeeder extends Seeder
                 $dueAmount = $invoiceAmount; // All unpaid for simplicity
 
                 // Calculate metrics
-                $daysOverdue = now()->gt($dueDate) ? now()->diffInDays($dueDate) : 0;
+                $daysOverdue = now()->gt($dueDate) ? now()->diffInDays($dueDate)*-1 : 0;
                 $dbtRatio = $paymentTerms > 0 ? ($daysOverdue / $paymentTerms) : 0;
 
                 // Create invoice record
@@ -76,18 +76,28 @@ class InvoiceSeeder extends Seeder
             }
         }
 
-        // Simple update of business_debtor totals
-        $this->command->info('Updating business-debtor relationship amounts');
+        // Update all business_debtor relationships with the correct totals
+        $this->command->info('Updating all business-debtor relationship amounts');
+
+        // Get all unique business-debtor relationship IDs from the invoices table
+        $allRelationships = DB::table('invoices')
+            ->select('business_id', 'debtor_id')
+            ->distinct()
+            ->get();
 
         $updatedRelationships = 0;
-        foreach ($relationships as $relationship) {
+
+        foreach ($allRelationships as $relationship) {
+            // Calculate the total due amount for this business-debtor pair
             $totalDueAmount = DB::table('invoices')
                 ->where('business_id', $relationship->business_id)
                 ->where('debtor_id', $relationship->debtor_id)
                 ->sum('due_amount');
 
+            // Update the amount_owed in the business_debtor table
             DB::table('business_debtor')
-                ->where('id', $relationship->id)
+                ->where('business_id', $relationship->business_id)
+                ->where('debtor_id', $relationship->debtor_id)
                 ->update([
                     'amount_owed' => $totalDueAmount,
                     'updated_at' => now(),
@@ -100,6 +110,6 @@ class InvoiceSeeder extends Seeder
             }
         }
 
-        $this->command->info("Invoice seeding completed. Created {$invoiceCount} invoices.");
+        $this->command->info("Invoice seeding completed. Created {$invoiceCount} invoices and updated {$updatedRelationships} relationship amounts.");
     }
 }
