@@ -26,7 +26,9 @@ class DebtorsListingWidget extends BaseWidget
 
         return Debtor::query()
             ->where(function ($query) use ($business) {
-                $query->where('business_id', $business->id)
+                $query->whereHas('businesses', function ($subQuery) use ($business) {
+                    $subQuery->where('businesses.id', $business->id);
+                })
                     ->orWhere('kra_pin', $business->registration_number);
             })
             ->whereIn('status', ['active', 'disputed', 'pending'])

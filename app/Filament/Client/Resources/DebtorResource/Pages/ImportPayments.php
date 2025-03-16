@@ -3,23 +3,27 @@
 namespace App\Filament\Client\Resources\DebtorResource\Pages;
 
 use App\Filament\Client\Resources\DebtorResource;
-use App\Exports\DebtorTemplateExport;
-use App\Imports\DebtorsImport;
+use App\Exports\PaymentTemplateExport;
 use Filament\Actions\Action;
 use Filament\Forms;
-use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Form;
 use Filament\Resources\Pages\Page;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Auth;
-use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Livewire\WithFileUploads;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Imports\PaymentsImport;
 
-class ImportDebtors extends Page
+class ImportPayments extends Page
 {
-    protected static string $resource = DebtorResource::class;
-    protected static string $view = 'filament.client.resources.debtor-resource.import-debtors';
+    use WithFileUploads;
 
-    public array $data = [];
+    protected static string $resource = DebtorResource::class;
+
+    protected static string $view = 'filament.client.resources.debtor-resource.import-payments';
+
+    public $file;
+    public ?array $data = [];
 
     public function mount(): void
     {
@@ -28,24 +32,18 @@ class ImportDebtors extends Page
         if (!$business) {
             $this->redirect(route('filament.client.auth.business-information'));
         }
-
-        $this->form->fill();
     }
 
-    public function form(Forms\Form $form): Forms\Form
+    public function form(Form $form): Form
     {
         return $form
             ->schema([
-                Forms\Components\Section::make('Import Debtors')
+                Forms\Components\Section::make('Import Payments')
                     ->schema([
-                        FileUpload::make('file')
+                        Forms\Components\FileUpload::make('file')
                             ->label('Upload Excel/CSV File')
                             ->helperText('Download the template below to ensure your file is in the correct format')
-                            ->acceptedFileTypes([
-                                'application/vnd.ms-excel',
-                                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                                'text/csv'
-                            ])
+                            ->acceptedFileTypes(['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv'])
                             ->maxSize(5120)
                             ->required(),
 
@@ -56,10 +54,6 @@ class ImportDebtors extends Page
                         Forms\Components\Checkbox::make('liability_confirmation')
                             ->label('I confirm that all the information provided is accurate and I bear full liability for its correctness')
                             ->required(),
-
-                        Forms\Components\Checkbox::make('terms_accepted')
-                            ->label('I have read and accepted the Terms & Conditions')
-                            ->required(),
                     ]),
             ])
             ->statePath('data');
@@ -69,38 +63,19 @@ class ImportDebtors extends Page
     {
         $data = $this->form->getState();
 
-        if (empty($data['file']) ||
-            !isset($data['liability_confirmation']) || $data['liability_confirmation'] !== true ||
-            !isset($data['terms_accepted']) || $data['terms_accepted'] !== true) {
-
-            Notification::make()
-                ->title('Validation Error')
-                ->body('Please fill in all required fields and accept the terms.')
-                ->danger()
-                ->send();
-
-            return;
-        }
-
         $business = Auth::user()->businesses()->first();
 
         try {
-            $filePath = $data['file'];
-
-            if (is_array($filePath)) {
-                $filePath = $filePath[0];
-            }
-
-            $import = new DebtorsImport($business->id, Auth::id());
+            $import = new PaymentsImport($business->id, Auth::id());
             $import->hasHeaders = $data['has_headers'] ?? true;
 
-            Excel::import($import, storage_path('app/public/' . $filePath));
+            Excel::import($import, $data['file']);
 
             $importCount = $import->getRowCount();
 
             Notification::make()
                 ->title('Import Successful')
-                ->body("Successfully imported {$importCount} debtors. Please add supporting documents for each debtor.")
+                ->body("Successfully imported {$importCount} payment records.")
                 ->success()
                 ->send();
 
@@ -116,14 +91,14 @@ class ImportDebtors extends Page
 
     public function downloadTemplate()
     {
-        return Excel::download(new DebtorTemplateExport(), 'debtors-import-template.xlsx');
+        return Excel::download(new PaymentTemplateExport(), 'payments-import-template.xlsx');
     }
 
     protected function getHeaderActions(): array
     {
         return [
             Action::make('submit')
-                ->label('Import Debtors')
+                ->label('Import Payments')
                 ->action('submit')
                 ->color('primary'),
 

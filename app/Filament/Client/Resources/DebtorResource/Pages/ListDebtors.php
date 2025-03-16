@@ -14,14 +14,14 @@ class ListDebtors extends ListRecords
     {
         return [
             Actions\CreateAction::make(),
-            Actions\Action::make('import')
+            Actions\Action::make('import_debtors')
                 ->label('Import Debtors')
-//                ->url('/client/debtors/import')
+                ->url(fn (): string => $this->getResource()::getUrl('import'))
                 ->icon('heroicon-o-document-plus'),
-            Actions\Action::make('import')
+            Actions\Action::make('import_payments')
                 ->label('Import Payments')
-//                ->url('/client/debtors/import')
-                ->icon('heroicon-o-document-plus'),
+                ->url(fn (): string => $this->getResource()::getUrl('import-payments'))
+                ->icon('heroicon-o-currency-dollar'),
         ];
     }
 }

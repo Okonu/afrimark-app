@@ -11,6 +11,10 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', [WelcomeController::class, 'index'])->name('welcome');
 
+Route::get('debug-route', function() {
+    return 'Debug route works!';
+});
+
 Filament\Facades\Filament::registerPages([
     DisputesPageManager::class,
 ]);
@@ -24,9 +28,6 @@ Route::get('/auth/callback/{provider}', [SocialAuthController::class, 'callback'
 // Business email verification
 Route::get('verify-email/{token}', [App\Http\Controllers\Business\VerificationController::class, 'verify'])
     ->name('business.verification.verify');
-
-Route::get('/client/debtors/import', [App\Filament\Client\Resources\DebtorResource\Pages\ImportDebtors::class, '__invoke'])
-    ->name('filament.client.resources.debtors.import');
 
 // Debtor dispute from email
 Route::get('/debtor/dispute/{id}', function ($id) {

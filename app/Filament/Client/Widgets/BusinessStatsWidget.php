@@ -6,6 +6,7 @@ use App\Models\Debtor;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class BusinessStatsWidget extends BaseWidget
 {
@@ -18,12 +19,16 @@ class BusinessStatsWidget extends BaseWidget
         }
 
         $totalOwed = $business->debtors()
+            ->wherePivot('business_id', $business->id)
             ->where('status', 'active')
-            ->sum('amount_owed');
+            ->sum('business_debtor.amount_owed');
 
-        $totalOwing = Debtor::where('kra_pin', $business->registration_number)
-            ->where('status', 'active')
-            ->sum('amount_owed');
+        $totalOwing = DB::table('debtors')
+            ->join('business_debtor', 'debtors.id', '=', 'business_debtor.debtor_id')
+            ->where('debtors.kra_pin', $business->registration_number)
+            ->where('debtors.status', 'active')
+            ->whereNull('debtors.deleted_at')
+            ->sum('business_debtor.amount_owed');
 
         $activeDebtors = $business->debtors()
             ->where('status', 'active')

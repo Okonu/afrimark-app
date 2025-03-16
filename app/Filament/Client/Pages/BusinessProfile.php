@@ -46,7 +46,9 @@ class BusinessProfile extends Page implements HasTable
         return $table
             ->query(
                 Debtor::query()
-                    ->where('business_id', $this->business?->id)
+                    ->whereHas('businesses', function ($query) {
+                        $query->where('businesses.id', $this->business?->id);
+                    })
                     ->where('status', 'active')
             )
             ->columns([
