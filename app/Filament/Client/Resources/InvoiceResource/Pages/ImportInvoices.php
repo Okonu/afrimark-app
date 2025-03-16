@@ -127,12 +127,12 @@ class ImportInvoices extends Page
             Action::make('download_template')
                 ->label('Download Template')
                 ->action('downloadTemplate')
-                ->color('secondary'),
+                ->color('primary'),
 
             Action::make('cancel')
                 ->label('Cancel')
                 ->url($this->getResource()::getUrl('index'))
-                ->color('secondary'),
+                ->color('primary'),
         ];
     }
 }
