@@ -14,7 +14,6 @@ class CreateDebtor extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        $data['business_id'] = Auth::user()->businesses()->first()->id;
         $data['status'] = 'pending';
         $data['listing_goes_live_at'] = now()->addDays(7);
 
@@ -24,9 +23,15 @@ class CreateDebtor extends CreateRecord
     protected function afterCreate(): void
     {
         $debtorService = app(DebtorService::class);
+        $business = Auth::user()->businesses()->first();
+
+        if ($business) {
+            $this->record->businesses()->attach($business->id, [
+                'amount_owed' => $this->data['amount_owed'] ?? 0,
+            ]);
+        }
 
         $documents = $this->data['documents'] ?? [];
-
         foreach ($documents as $document) {
             $this->record->documents()->create([
                 'file_path' => $document,

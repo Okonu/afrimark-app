@@ -28,7 +28,9 @@ class DebtorResource extends Resource
         $businessId = Auth::user()->businesses()->first()?->id;
 
         return parent::getEloquentQuery()
-            ->where('business_id', $businessId);
+            ->whereHas('businesses', function ($query) use ($businessId) {
+                $query->where('businesses.id', $businessId);
+            });
     }
 
     public static function form(Form $form): Form
@@ -116,10 +118,6 @@ class DebtorResource extends Resource
                         'primary' => 'paid',
                     ]),
 
-//                Tables\Columns\TextColumn::make('created_at')
-//                    ->label('Created Date')
-//                    ->dateTime()
-//                    ->sortable(),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
@@ -199,10 +197,11 @@ class DebtorResource extends Resource
         return [
             'index' => Pages\ListDebtors::route('/'),
             'create' => Pages\CreateDebtor::route('/create'),
+            'import' => Pages\ImportDebtors::route('/import'),
+            'import-payments' => Pages\ImportPayments::route('/import-payments'),
             'edit' => Pages\EditDebtor::route('/{record}/edit'),
             'view' => Pages\ViewDebtor::route('/{record}'),
             'payment' => Pages\UpdatePayment::route('/{record}/payment'),
-            'import' => Pages\ImportDebtors::route('/import'),
         ];
     }
 }

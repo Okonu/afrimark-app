@@ -1,3 +1,4 @@
+@php use Illuminate\Support\Facades\DB; @endphp
 <x-filament-panels::page>
     <div class="space-y-6">
         @if($this->business)
@@ -78,10 +79,17 @@
                 <!-- Financial Summary Cards -->
                 <div class="md:w-2/3 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <x-filament::section>
-                        <h3 class="text-base font-medium text-gray-900">Total Amount Owed</h3>
+                        <h3 class="text-base font-medium text-gray-900">Total Amount Owing</h3>
                         <div class="mt-2">
                             <p class="text-3xl font-bold text-red-600">
-                                KES {{ number_format($this->business->debtorsToOthers()->sum('amount_owed'), 2) }}
+                                @php
+                                    $totalOwed = \DB::table('debtors')
+                                        ->join('business_debtor', 'debtors.id', '=', 'business_debtor.debtor_id')
+                                        ->where('debtors.kra_pin', $this->business->registration_number)
+                                        ->whereNull('debtors.deleted_at')
+                                        ->sum('business_debtor.amount_owed');
+                                @endphp
+                                KES {{ number_format($totalOwed, 2) }}
                             </p>
                             <p class="text-sm text-gray-500 mt-1">
                                 Across {{ $this->business->debtorsToOthers()->count() }} businesses
@@ -90,10 +98,13 @@
                     </x-filament::section>
 
                     <x-filament::section>
-                        <h3 class="text-base font-medium text-gray-900">Total Amount Owing</h3>
+                        <h3 class="text-base font-medium text-gray-900">Total Amount Owed</h3>
                         <div class="mt-2">
                             <p class="text-3xl font-bold text-green-600">
-                                KES {{ number_format($this->business->debtors()->sum('amount_owed'), 2) }}
+                                @php
+                                    $totalOwing = $this->business->debtors()->sum('business_debtor.amount_owed');
+                                @endphp
+                                KES {{ number_format($totalOwing, 2) }}
                             </p>
                             <p class="text-sm text-gray-500 mt-1">
                                 From {{ $this->business->debtors()->count() }} debtors
@@ -105,7 +116,12 @@
                         <h3 class="text-base font-medium text-gray-900">Disputed Amount</h3>
                         <div class="mt-2">
                             <p class="text-3xl font-bold text-amber-600">
-                                KES {{ number_format($this->business->debtors()->where('status', 'disputed')->sum('amount_owed'), 2) }}
+                                @php
+                                    $disputedAmount = $this->business->debtors()
+                                        ->where('status', 'disputed')
+                                        ->sum('business_debtor.amount_owed');
+                                @endphp
+                                KES {{ number_format($disputedAmount, 2) }}
                             </p>
                             <p class="text-sm text-gray-500 mt-1">
                                 {{ $this->business->debtors()->where('status', 'disputed')->count() }} active disputes

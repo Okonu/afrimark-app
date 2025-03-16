@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 class Debtor extends Model
@@ -32,6 +33,22 @@ class Debtor extends Model
         'listed_at' => 'datetime',
         'status_updated_at' => 'datetime',
     ];
+
+    public function documents(): HasMany
+    {
+        return $this->hasMany(DebtorDocument::class);
+    }
+
+    public function getAmountOwedAttribute()
+    {
+        $businessId = Auth::user()->businesses()->first()?->id;
+        if (!$businessId) {
+            return 0;
+        }
+
+        $pivot = $this->businesses()->where('business_id', $businessId)->first()?->pivot;
+        return $pivot ? $pivot->amount_owed : 0;
+    }
 
     public function businesses(): BelongsToMany
     {
