@@ -4,6 +4,7 @@ namespace App\Imports;
 
 use App\Models\Debtor;
 use App\Enums\DebtorStatus;
+use App\Services\Debtor\DebtorService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\ToCollection;
@@ -19,6 +20,7 @@ class DebtorsImport implements ToCollection, WithHeadingRow, SkipsEmptyRows, Wit
     protected int $businessId;
     protected int $userId;
     protected int $rowCount = 0;
+    protected DebtorService $debtorService;
     public bool $hasHeaders = true;
 
     /**
@@ -29,6 +31,7 @@ class DebtorsImport implements ToCollection, WithHeadingRow, SkipsEmptyRows, Wit
     {
         $this->businessId = $businessId;
         $this->userId = $userId;
+        $this->debtorService = app(DebtorService::class);
     }
 
     /**
@@ -44,13 +47,15 @@ class DebtorsImport implements ToCollection, WithHeadingRow, SkipsEmptyRows, Wit
             }
 
             $debtor = Debtor::where('kra_pin', $row['kra_pin'])->first();
+            $isNewDebtor = false;
 
             if (!$debtor) {
+                $isNewDebtor = true;
                 $debtor = Debtor::create([
                     'name' => $row['name'],
                     'kra_pin' => $row['kra_pin'],
                     'email' => $row['email'],
-                    'status' => 'active',
+                    'status' => 'pending',
                     'listing_goes_live_at' => now()->addDays(7),
                     'verification_token' => Str::random(64),
                 ]);
@@ -62,26 +67,15 @@ class DebtorsImport implements ToCollection, WithHeadingRow, SkipsEmptyRows, Wit
                 $business->debtors()->attach($debtor->id, [
                     'amount_owed' => $row['amount_owed'],
                 ]);
+
+                $this->debtorService->sendDebtorNotification($debtor);
             } else {
                 $business->debtors()->updateExistingPivot($debtor->id, [
                     'amount_owed' => $row['amount_owed'],
                 ]);
-            }
 
-            // Store invoice number if provided
-//            if (!empty($row['invoice_number'])) {
-//                // Only create invoice if the model exists
-//                if (class_exists('\App\Models\Invoice')) {
-//                    $debtor->invoices()->updateOrCreate(
-//                        ['invoice_number' => $row['invoice_number']],
-//                        [
-//                            'business_id' => $this->businessId,
-//                            'amount' => $row['amount_owed'],
-//                            'date' => now(),
-//                        ]
-//                    );
-//                }
-//            }
+                // $this->debtorService->sendDebtorNotification($debtor);
+            }
 
             $this->rowCount++;
         }
