@@ -18,6 +18,8 @@ class DisputeResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-exclamation-triangle';
     protected static ?string $navigationLabel = 'Disputes';
+
+    protected static bool $shouldRegisterNavigation = false;
     protected static ?int $navigationSort = 4;
 
     public static function getEloquentQuery(): Builder
