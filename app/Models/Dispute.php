@@ -62,4 +62,48 @@ class Dispute extends Model
     {
         return $this->status === 'under_review';
     }
+
+    public function getProcessedDocuments()
+    {
+        return $this->documents()
+            ->whereNotNull('processed_at')
+            ->where('processing_status', 'completed')
+            ->get();
+    }
+
+    public function hasSupportingDocuments(): bool
+    {
+        $processedDocs = $this->getProcessedDocuments();
+
+        foreach ($processedDocs as $document) {
+            if ($document->mightSupportDispute()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function getDocumentsSummary(): string
+    {
+        $processedDocs = $this->getProcessedDocuments();
+
+        if ($processedDocs->isEmpty()) {
+            return "No processed documents available.";
+        }
+
+        $summaries = [];
+        foreach ($processedDocs as $document) {
+            $evidence = $document->extractDisputeEvidence();
+            if ($evidence && isset($evidence['summary'])) {
+                $summaries[] = $evidence['summary'];
+            }
+        }
+
+        if (empty($summaries)) {
+            return "No document summaries available.";
+        }
+
+        return implode("\n\n", $summaries);
+    }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\BusinessCreditScore;
 use App\Traits\HasDocuments;
 use App\Traits\SendsUserNotifications;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -15,7 +16,8 @@ use Illuminate\Support\Facades\DB;
 
 class Business extends Model
 {
-    use SoftDeletes, HasFactory, HasDocuments, Notifiable, SendsUserNotifications;
+    use SoftDeletes, HasFactory, HasDocuments, Notifiable, SendsUserNotifications, BusinessCreditScore;
+
     protected $fillable = ['name', 'email', 'address', 'registration_number'];
 
     public function users()

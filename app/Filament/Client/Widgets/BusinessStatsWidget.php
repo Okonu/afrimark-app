@@ -38,7 +38,7 @@ class BusinessStatsWidget extends BaseWidget
             ->where('status', 'active')
             ->count();
 
-        return [
+        $stats = [
             Stat::make('Total Amount Owed To You', number_format($totalOwed, 2) . ' KES')
                 ->description('From active debtors')
                 ->descriptionIcon('heroicon-m-arrow-trending-up')
@@ -59,5 +59,14 @@ class BusinessStatsWidget extends BaseWidget
                 ->descriptionIcon('heroicon-m-document-text')
                 ->color('warning'),
         ];
+
+        if ($business->hasCreditScore()) {
+            $stats[] = Stat::make('Credit Score', $business->getCreditScore())
+                ->description($business->getRiskDescription() . ' Risk')
+                ->descriptionIcon('heroicon-m-chart-bar')
+                ->color($business->getRiskColor());
+        }
+
+        return $stats;
     }
 }

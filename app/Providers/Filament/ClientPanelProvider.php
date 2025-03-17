@@ -46,6 +46,7 @@ class ClientPanelProvider extends PanelProvider
                 Pages\Dashboard::class,
 //                DisputesPageManager::class,
             ])
+            ->darkMode(false)
             ->widgets([
                 BusinessStatsWidget::class,
                 OnboardingProgressWidget::class,

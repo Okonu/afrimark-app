@@ -4,6 +4,7 @@ namespace App\Filament\Client\Pages;
 
 use App\Models\Business;
 use App\Models\Debtor;
+use App\Models\Invoice;
 use Filament\Pages\Page;
 use Filament\Forms\Components\Tabs;
 use Filament\Forms\Components\Tabs\Tab;
@@ -14,6 +15,7 @@ use Filament\Forms\Form;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 
@@ -62,14 +64,18 @@ class BusinessProfile extends Page implements HasTable
                     ->money('KES')
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('invoice_number')
-                    ->label('Invoice Number')
-                    ->searchable(),
-
                 Tables\Columns\TextColumn::make('listed_at')
                     ->label('Listing Date')
                     ->dateTime()
                     ->sortable(),
+
+                Tables\Columns\TextColumn::make('credit_score')
+                    ->label('Credit Score')
+                    ->getStateUsing(function (Debtor $record) {
+                        return $record->hasCreditScore() ? $record->getCreditScore() : 'N/A';
+                    })
+                    ->badge()
+                    ->color(fn (Debtor $record) => $record->hasCreditScore() ? $record->getRiskColor() : 'gray'),
 
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
@@ -101,35 +107,81 @@ class BusinessProfile extends Page implements HasTable
 
         return Tables\Table::make($this)
             ->query(
-                Debtor::query()
-                    ->where('kra_pin', $this->business->registration_number)
-                    ->where('status', 'active')
+            // Find distinct businesses that have invoiced the current business
+                Business::query()
+                    ->select('businesses.*')
+                    ->join('invoices', 'businesses.id', '=', 'invoices.business_id')
+                    ->join('debtors', 'invoices.debtor_id', '=', 'debtors.id')
+                    ->where('debtors.kra_pin', $this->business->registration_number)
+                    ->where('debtors.status', 'active')
+                    ->distinct()
             )
             ->columns([
-                Tables\Columns\TextColumn::make('business.name')
-                    ->label('Listed By')
+                Tables\Columns\TextColumn::make('name')
+                    ->label('Business Name')
                     ->searchable()
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('amount_owed')
-                    ->label('Amount Owed')
+                Tables\Columns\TextColumn::make('total_amount_claimed')
+                    ->label('Total Amount Claimed')
                     ->money('KES')
+                    ->getStateUsing(function (Business $record) {
+                        // Get all the invoices from this business to the current business
+                        return Invoice::query()
+                            ->where('business_id', $record->id)
+                            ->whereHas('debtor', function($query) {
+                                $query->where('kra_pin', $this->business->registration_number)
+                                    ->where('status', 'active');
+                            })
+                            ->sum('due_amount');
+                    }),
+
+                Tables\Columns\TextColumn::make('latest_invoice_date')
+                    ->label('Latest Invoice Date')
+                    ->getStateUsing(function (Business $record) {
+                        // Get the most recent invoice date
+                        $latestInvoice = Invoice::query()
+                            ->where('business_id', $record->id)
+                            ->whereHas('debtor', function($query) {
+                                $query->where('kra_pin', $this->business->registration_number)
+                                    ->where('status', 'active');
+                            })
+                            ->orderByDesc('invoice_date')
+                            ->first();
+
+                        return $latestInvoice ? $latestInvoice->invoice_date : null;
+                    })
+                    ->date()
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('invoice_number')
-                    ->label('Invoice Number')
-                    ->searchable(),
-
-                Tables\Columns\TextColumn::make('listed_at')
-                    ->label('Listing Date')
-                    ->dateTime()
-                    ->sortable(),
+                Tables\Columns\TextColumn::make('credit_score')
+                    ->label('Lister Credit Score')
+                    ->getStateUsing(function (Business $record) {
+                        return $record->hasCreditScore() ? $record->getCreditScore() : 'N/A';
+                    })
+                    ->badge()
+                    ->color(fn (Business $record) => $record->hasCreditScore() ? $record->getRiskColor() : 'gray'),
             ])
             ->actions([
+                Tables\Actions\Action::make('view_invoices')
+                    ->label('View Invoices')
+                    ->color('primary')
+                    ->url(function (Business $record) {
+                        // Link to our new InvoicesListingYou page with a business_id filter
+                        return route('filament.client.pages.invoices-listing-you', [
+                            'business_id' => $record->id,
+                        ]);
+                    }),
+
                 Tables\Actions\Action::make('dispute')
-                    ->label('Dispute')
+                    ->label('Dispute Invoice')
                     ->color('danger')
-                    ->url(fn (Debtor $record): string => route('filament.client.resources.disputes.create', ['debtor' => $record->id])),
+                    ->url(function (Business $record) {
+                        // Link to our InvoicesListingYou page to let the user select which invoice to dispute
+                        return route('filament.client.pages.invoices-listing-you', [
+                            'business_id' => $record->id,
+                        ]);
+                    }),
             ])
             ->paginated([10, 25, 50]);
     }
