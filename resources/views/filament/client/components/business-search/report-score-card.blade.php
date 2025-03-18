@@ -53,7 +53,7 @@
                 </div>
 
                 @if(isset($businessReport['has_api_score']) && $businessReport['has_api_score'])
-                    <p class="text-xs text-gray-500 italic">Credit score from API</p>
+                    <p class="text-xs text-gray-500 italic">Risk Level Score</p>
                 @endif
             </div>
         @else
