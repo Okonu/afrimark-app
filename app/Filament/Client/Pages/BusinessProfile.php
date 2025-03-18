@@ -25,7 +25,9 @@ class BusinessProfile extends Page implements HasTable
 
     protected static ?string $navigationIcon = 'heroicon-o-user-circle';
     protected static ?string $navigationLabel = 'Profile';
+
     protected static ?string $title = 'Business Profile';
+    protected static ?string $navigationGroup = 'Overview';
     protected static ?int $navigationSort = 2;
 
     protected static string $view = 'filament.client.pages.business-profile';
@@ -68,14 +70,6 @@ class BusinessProfile extends Page implements HasTable
                     ->label('Listing Date')
                     ->dateTime()
                     ->sortable(),
-
-                Tables\Columns\TextColumn::make('credit_score')
-                    ->label('Credit Score')
-                    ->getStateUsing(function (Debtor $record) {
-                        return $record->hasCreditScore() ? $record->getCreditScore() : 'N/A';
-                    })
-                    ->badge()
-                    ->color(fn (Debtor $record) => $record->hasCreditScore() ? $record->getRiskColor() : 'gray'),
 
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
@@ -154,13 +148,6 @@ class BusinessProfile extends Page implements HasTable
                     ->date()
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('credit_score')
-                    ->label('Lister Credit Score')
-                    ->getStateUsing(function (Business $record) {
-                        return $record->hasCreditScore() ? $record->getCreditScore() : 'N/A';
-                    })
-                    ->badge()
-                    ->color(fn (Business $record) => $record->hasCreditScore() ? $record->getRiskColor() : 'gray'),
             ])
             ->actions([
                 Tables\Actions\Action::make('view_invoices')

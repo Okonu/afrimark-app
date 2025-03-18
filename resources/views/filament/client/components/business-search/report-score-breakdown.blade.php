@@ -196,46 +196,4 @@
             <p>This credit score is based on the business's payment history and financial behavior across the network.</p>
         </div>
     </div>
-</div> border-gray-200">
-<div class="flex-shrink-0 mr-2">
-    <x-heroicon-s-information-circle class="h-4 w-4 text-primary-500" />
 </div>
-<p class="text-xs text-gray-700">{{ $businessReport['api_score_details']['Reasons for score'] }}</p>
-</div>
-</div>
-@endif
-</div>
-
-@if(isset($businessReport['api_score_details']['Normalized PD']))
-    <div class="mt-4 p-3 bg-white rounded-lg border border-gray-200">
-        <div class="flex items-center justify-between">
-            <div>
-                <h6 class="text-xs font-medium text-gray-600">Default Probability</h6>
-                <p class="text-sm font-medium {{ $businessReport['api_score_details']['Normalized PD'] > 0.2 ? 'text-red-600' : 'text-green-600' }}">
-                    {{ number_format($businessReport['api_score_details']['Normalized PD'] * 100, 1) }}%
-                </p>
-            </div>
-            <div class="h-9 w-9 flex items-center justify-center rounded-full
-                                {{ $businessReport['api_score_details']['Normalized PD'] > 0.2 ? 'bg-red-100' : 'bg-green-100' }}">
-                @if($businessReport['api_score_details']['Normalized PD'] > 0.2)
-                    <x-heroicon-s-exclamation-triangle class="h-5 w-5 text-red-500" />
-                @else
-                    <x-heroicon-s-check-circle class="h-5 w-5 text-green-500" />
-                @endif
-            </div>
-        </div>
-        <p class="text-xs text-gray-500 mt-1">Estimated probability of payment default within the next 90 days.</p>
-    </div>
-    @endif
-    </div>
-    </div>
-
-    <div class="mt-6 flex items-center p-3 bg-blue-50 border border-blue-100 rounded-lg">
-        <x-heroicon-s-light-bulb class="h-5 w-5 text-blue-500 mr-2 flex-shrink-0" />
-        <p class="text-xs text-blue-700">
-            Credit scores are calculated using multiple factors and updated regularly. This analysis is based on data
-            available as of the last update timestamp and should be considered alongside other business information.
-        </p>
-    </div>
-    </div>
-    </div>

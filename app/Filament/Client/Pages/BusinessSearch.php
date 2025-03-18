@@ -8,6 +8,7 @@ use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Pages\Page;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\Log;
 
 class BusinessSearch extends Page
 {
@@ -113,41 +114,57 @@ class BusinessSearch extends Page
                     'has_api_score' => false,
                     'risk_description' => null,
                     'risk_class' => null,
+                    'risk_color' => 'gray',
                     'api_score_details' => [],
                 ], $this->businessReport);
+
+                // Log the report data for debugging
+                Log::debug('Business Report Data:', [
+                    'has_credit_score' => isset($this->businessReport['credit_score']),
+                    'credit_score' => $this->businessReport['credit_score'] ?? null,
+                    'has_risk_class' => isset($this->businessReport['risk_class']),
+                    'risk_class' => $this->businessReport['risk_class'] ?? null,
+                    'has_api_details' => isset($this->businessReport['api_score_details']),
+                    'api_details_count' => isset($this->businessReport['api_score_details']) ?
+                        (is_array($this->businessReport['api_score_details']) ? count($this->businessReport['api_score_details']) : 'not array') : 0,
+                ]);
             }
         } catch (\Exception $e) {
+            Log::error('Failed to fetch business report: ' . $e->getMessage(), ['exception' => $e]);
             $this->notify('error', 'Failed to fetch business report: ' . $e->getMessage());
             $this->businessReport = null;
         }
     }
 
-    public function getCreditScoreColorClass($scoreData): string
+    /**
+     * Get CSS color class for credit score badge
+     */
+    public function getCreditScoreBadgeClass($scoreData): string
     {
-        // Check if we have a risk class
-        if (isset($scoreData['risk_class'])) {
-            return match($scoreData['risk_class']) {
-                1 => 'bg-green-500',  // Low risk
-                2 => 'bg-green-400',  // Low to Medium risk
-                3 => 'bg-yellow-500', // Medium risk
-                4 => 'bg-yellow-600', // Medium to High risk
-                5 => 'bg-red-500',    // High risk
-                default => 'bg-gray-500',
+        // If we have risk class
+        if (isset($scoreData['risk_class']) && $scoreData['risk_class']) {
+            return match((int)$scoreData['risk_class']) {
+                1 => 'bg-green-100 text-green-800',
+                2 => 'bg-green-100 text-green-800',
+                3 => 'bg-yellow-100 text-yellow-800',
+                4 => 'bg-yellow-100 text-yellow-800',
+                5 => 'bg-red-100 text-red-800',
+                default => 'bg-gray-100 text-gray-800',
             };
         }
 
         // Otherwise, calculate based on score
-        $score = $scoreData['credit_score'] ?? null;
+        $score = isset($scoreData['credit_score']) ? $scoreData['credit_score'] : null;
         if ($score === null) {
-            return 'bg-gray-200';
+            return 'bg-gray-100 text-gray-800';
         }
 
         return match(true) {
-            $score >= 80 => 'bg-green-500',
-            $score >= 70 => 'bg-green-400',
-            $score >= 60 => 'bg-yellow-400',
-            $score >= 40 => 'bg-yellow-600',
-            default => 'bg-red-500',
+            $score >= 80 => 'bg-green-100 text-green-800',
+            $score >= 70 => 'bg-green-100 text-green-800',
+            $score >= 60 => 'bg-yellow-100 text-yellow-800',
+            $score >= 40 => 'bg-yellow-100 text-yellow-800',
+            default => 'bg-red-100 text-red-800',
         };
     }
 
@@ -177,34 +194,49 @@ class BusinessSearch extends Page
     }
 
     /**
-     * Get badge color class for credit score
+     * Convert risk color to CSS class
      */
-    public function getCreditScoreBadgeClass($scoreData): string
+    public function getRiskColorClass($riskColor): string
     {
-        // If we have risk class
-        if (isset($scoreData['risk_class']) && $scoreData['risk_class']) {
-            return match((int)$scoreData['risk_class']) {
-                1 => 'bg-green-100 text-green-800',
-                2 => 'bg-green-100 text-green-800',
-                3 => 'bg-yellow-100 text-yellow-800',
-                4 => 'bg-yellow-100 text-yellow-800',
-                5 => 'bg-red-100 text-red-800',
-                default => 'bg-gray-100 text-gray-800',
+        return match ($riskColor) {
+            'success' => 'green',
+            'info' => 'blue',
+            'warning' => 'yellow',
+            'amber' => 'orange',
+            'danger' => 'red',
+            default => 'gray',
+        };
+    }
+
+    /**
+     * Get CSS color class for credit score circle
+     */
+    public function getCreditScoreColorClass($scoreData): string
+    {
+        // Check if we have a risk class
+        if (isset($scoreData['risk_class'])) {
+            return match($scoreData['risk_class']) {
+                1 => 'bg-green-500',  // Low risk
+                2 => 'bg-green-400',  // Low to Medium risk
+                3 => 'bg-yellow-500', // Medium risk
+                4 => 'bg-yellow-600', // Medium to High risk
+                5 => 'bg-red-500',    // High risk
+                default => 'bg-gray-500',
             };
         }
 
         // Otherwise, calculate based on score
-        $score = isset($scoreData['credit_score']) ? $scoreData['credit_score'] : null;
+        $score = $scoreData['credit_score'] ?? null;
         if ($score === null) {
-            return 'bg-gray-100 text-gray-800';
+            return 'bg-gray-200';
         }
 
         return match(true) {
-            $score >= 80 => 'bg-green-100 text-green-800',
-            $score >= 70 => 'bg-green-100 text-green-800',
-            $score >= 60 => 'bg-yellow-100 text-yellow-800',
-            $score >= 40 => 'bg-yellow-100 text-yellow-800',
-            default => 'bg-red-100 text-red-800',
+            $score >= 80 => 'bg-green-500',
+            $score >= 70 => 'bg-green-400',
+            $score >= 60 => 'bg-yellow-400',
+            $score >= 40 => 'bg-yellow-600',
+            default => 'bg-red-500',
         };
     }
 

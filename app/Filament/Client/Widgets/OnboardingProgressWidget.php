@@ -9,7 +9,6 @@ use Illuminate\Support\Facades\Auth;
 class OnboardingProgressWidget extends Widget
 {
     protected static string $view = 'filament.client.widgets.onboarding-progress';
-
     protected int | string | array $columnSpan = 'full';
 
     protected function getViewData(): array

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Client\Resources;
 
+use App\Enums\DocumentType;
 use App\Filament\Client\Resources\InvoiceResource\Pages;
 use App\Models\Invoice;
 use Filament\Forms;
@@ -9,6 +10,8 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\Infolists;
+use Filament\Infolists\Infolist;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 
@@ -18,6 +21,7 @@ class InvoiceResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
     protected static ?string $navigationLabel = 'Invoices';
+    protected static ?string $navigationGroup = 'Records';
     protected static ?int $navigationSort = 4;
 
     public static function getEloquentQuery(): Builder
@@ -70,6 +74,67 @@ class InvoiceResource extends Resource
                             ->required(),
                     ])
                     ->columns(2),
+
+                Forms\Components\Section::make('Invoice Documents')
+                    ->schema([
+                        Forms\Components\Repeater::make('documents')
+                            ->schema([
+                                Forms\Components\Select::make('document_type')
+                                    ->label('Document Type')
+                                    ->options(function () {
+                                        $options = [];
+                                        $invoiceDocTypes = [
+                                            DocumentType::INVOICE,
+                                            DocumentType::PAYMENT_PROOF,
+                                            DocumentType::EVIDENCE,
+                                            DocumentType::DELIVERY_NOTE,
+                                            DocumentType::RECEIPT,
+                                            DocumentType::PURCHASE_ORDER,
+                                            DocumentType::CONTRACT,
+                                        ];
+                                        foreach ($invoiceDocTypes as $type) {
+                                            $options[$type->value] = $type->label();
+                                        }
+                                        return $options;
+                                    })
+                                    ->required(),
+
+                                Forms\Components\FileUpload::make('file')
+                                    ->label('Upload Document')
+                                    ->directory('debtor-documents')
+                                    ->acceptedFileTypes(['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
+                                    ->maxSize(10240)
+                                    ->required(),
+                            ])
+                            ->columns(2)
+                            ->defaultItems(1)
+                            ->addActionLabel('Add Another Document')
+                            ->itemLabel(function (array $state): ?string {
+                                if (isset($state['document_type'])) {
+                                    $docType = DocumentType::tryFrom($state['document_type']);
+                                    if ($docType) {
+                                        return $docType->label();
+                                    }
+                                }
+                                return 'Document';
+                            }),
+                    ]),
+
+                Forms\Components\Section::make('Terms & Conditions')
+                    ->schema([
+                        Forms\Components\Checkbox::make('liability_confirmation')
+                            ->label('I confirm that all the information provided is accurate and I bear full liability for its correctness')
+                            ->required(),
+
+                        Forms\Components\Checkbox::make('terms_accepted')
+                            ->label('I have read and accepted the Terms & Conditions')
+                            ->required(),
+
+                        Forms\Components\Placeholder::make('disclaimer')
+                            ->label('Disclaimer')
+                            ->content('By submitting this invoice, you certify that these are legitimate business debts that are due and payable. Fraudulent submissions may result in legal action. Afrimark does not guarantee payment but provides a platform to record and track business debts.')
+                            ->columnSpanFull(),
+                    ]),
             ]);
     }
 
@@ -151,9 +216,59 @@ class InvoiceResource extends Resource
                     }),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make(),
+                    Tables\Actions\EditAction::make(),
+                    Tables\Actions\DeleteAction::make(),
+                    Tables\Actions\Action::make('add_document')
+                        ->label('Add Document')
+                        ->icon('heroicon-o-document-plus')
+                        ->form([
+                            Forms\Components\Select::make('document_type')
+                                ->label('Document Type')
+                                ->options(function () {
+                                    $options = [];
+                                    $invoiceDocTypes = [
+                                        DocumentType::INVOICE,
+                                        DocumentType::PAYMENT_PROOF,
+                                        DocumentType::EVIDENCE,
+                                        DocumentType::DELIVERY_NOTE,
+                                        DocumentType::RECEIPT,
+                                        DocumentType::PURCHASE_ORDER,
+                                        DocumentType::CONTRACT,
+                                    ];
+                                    foreach ($invoiceDocTypes as $type) {
+                                        $options[$type->value] = $type->label();
+                                    }
+                                    return $options;
+                                })
+                                ->required(),
+
+                            Forms\Components\FileUpload::make('file')
+                                ->label('Upload Document')
+                                ->directory('debtor-documents')
+                                ->acceptedFileTypes(['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
+                                ->maxSize(10240)
+                                ->required(),
+                        ])
+                        ->action(function (Invoice $record, array $data) {
+                            // Create document in the debtor_documents table
+                            $record->debtor->documents()->create([
+                                'type' => $data['document_type'],
+                                'file_path' => $data['file'],
+                                'original_filename' => basename($data['file']),
+                                'uploaded_by' => Auth::id(),
+                                'processing_status' => 'pending',
+                                'related_invoice_id' => $record->id,
+                            ]);
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('Document Added')
+                                ->body("Document has been added to Invoice #{$record->invoice_number}")
+                                ->success()
+                                ->send();
+                        }),
+                ]),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

@@ -5,27 +5,21 @@ namespace App\Enums;
 enum DebtorStatus: string
 {
     case PENDING = 'pending';
-    case PARTIAL = 'partial';
-    case PAID = 'paid';
-
-    const ACTIVE = 'active';
-    const DISPUTED = 'disputed';
+    case ACTIVE = 'active';
 
     public function label(): string
     {
         return match($this) {
             self::PENDING => 'Pending',
-            self::PARTIAL => 'Partially Paid',
-            self::PAID => 'Paid',
+            self::ACTIVE => 'Active',
         };
     }
 
     public function color(): string
     {
         return match($this) {
-            self::PENDING => 'danger',
-            self::PARTIAL => 'warning',
-            self::PAID => 'success',
+            self::PENDING => 'warning',
+            self::ACTIVE => 'success',
         };
     }
 
@@ -33,8 +27,7 @@ enum DebtorStatus: string
     {
         return match($this) {
             self::PENDING => 'heroicon-o-clock',
-            self::PARTIAL => 'heroicon-o-banknotes',
-            self::PAID => 'heroicon-o-check-circle',
+            self::ACTIVE => 'heroicon-o-check-circle',
         };
     }
 }

@@ -21,7 +21,9 @@ class InvoicesListingYou extends Page implements HasTable
 
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
     protected static ?string $navigationLabel = 'Invoices Listing You';
+
     protected static ?string $title = 'Invoices Listing You';
+    protected static ?string $navigationGroup = 'Listings';
     protected static ?int $navigationSort = 4;
 
     protected static string $view = 'filament.client.pages.invoices-listing-you';

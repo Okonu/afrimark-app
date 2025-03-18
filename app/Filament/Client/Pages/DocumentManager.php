@@ -31,7 +31,9 @@ class DocumentManager extends Page implements HasForms
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
     protected static ?string $navigationLabel = 'Documents';
     protected static ?int $navigationSort = 5;
+
     protected static ?string $title = 'Document Management';
+    protected static ?string $navigationGroup = 'Records';
 
     protected static string $view = 'filament.client.pages.document-manager';
 

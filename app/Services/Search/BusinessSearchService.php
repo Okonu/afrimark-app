@@ -4,25 +4,36 @@ namespace App\Services\Search;
 
 use App\Models\Business;
 use App\Models\Debtor;
-use App\Services\CreditScoreService;
+use App\Models\Invoice;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\DB;
 
 class BusinessSearchService
 {
     /**
-     * @var CreditScoreService
+     * @var string
      */
-    protected $creditScoreService;
+    protected $apiUrl;
+
+    /**
+     * @var string
+     */
+    protected $sessionPrefix = 'business_search_';
+
+    /**
+     * API data cache time in minutes
+     */
+    protected $cacheTime = 60;
 
     /**
      * Constructor
-     *
-     * @param CreditScoreService $creditScoreService
      */
-    public function __construct(CreditScoreService $creditScoreService)
+    public function __construct()
     {
-        $this->creditScoreService = $creditScoreService;
+        $this->apiUrl = config('afrimark.model_api_url', 'https://afri-model.afrimark.io');
     }
 
     /**
@@ -39,7 +50,6 @@ class BusinessSearchService
             'no_report' => [],
         ];
 
-        // Sanitize the search term to prevent SQL injection
         $searchTerm = '%' . str_replace(['%', '_'], ['\%', '\_'], $term) . '%';
 
         try {
@@ -51,13 +61,28 @@ class BusinessSearchService
                 ->limit(20)
                 ->get();
 
+            // Get API data
+            $apiData = $this->getApiData();
+
             foreach ($registeredBusinesses as $business) {
+                // Check if we have API data for this business
+                $hasApiData = false;
+                foreach ($apiData as $item) {
+                    if (strtoupper($item['kra_pin']) === strtoupper($business->registration_number) ||
+                        stripos($item['name'], $business->name) !== false ||
+                        stripos($business->name, $item['name']) !== false) {
+                        $hasApiData = true;
+                        break;
+                    }
+                }
+
                 $results['registered'][] = [
                     'id' => $business->id,
                     'name' => $business->name,
                     'registration_number' => $business->registration_number,
                     'report_available' => true,
                     'is_registered' => true,
+                    'has_api_data' => $hasApiData,
                 ];
             }
 
@@ -81,12 +106,55 @@ class BusinessSearchService
 
                 $processedNames[] = $unregisteredBusiness->name;
 
+                // Check if we have API data for this business
+                $hasApiData = false;
+                foreach ($apiData as $item) {
+                    if ((!empty($unregisteredBusiness->kra_pin) && strtoupper($item['kra_pin']) === strtoupper($unregisteredBusiness->kra_pin)) ||
+                        stripos($item['name'], $unregisteredBusiness->name) !== false ||
+                        stripos($unregisteredBusiness->name, $item['name']) !== false) {
+                        $hasApiData = true;
+                        break;
+                    }
+                }
+
                 $results['unregistered_listed'][] = [
                     'name' => $unregisteredBusiness->name,
                     'kra_pin' => $unregisteredBusiness->kra_pin,
                     'report_available' => true,
                     'is_registered' => false,
+                    'has_api_data' => $hasApiData,
                 ];
+            }
+
+            // Do an additional search in the API data for exact term matches
+            if (empty($results['registered']) && empty($results['unregistered_listed'])) {
+                foreach ($apiData as $item) {
+                    if (stripos($item['name'], $term) !== false ||
+                        (!empty($item['kra_pin']) && stripos($item['kra_pin'], $term) !== false)) {
+
+                        // Check if this business already exists in our database
+                        $existingBusiness = Business::where('registration_number', $item['kra_pin'])->first();
+
+                        if ($existingBusiness) {
+                            $results['registered'][] = [
+                                'id' => $existingBusiness->id,
+                                'name' => $existingBusiness->name,
+                                'registration_number' => $existingBusiness->registration_number,
+                                'report_available' => true,
+                                'is_registered' => true,
+                                'has_api_data' => true,
+                            ];
+                        } else {
+                            $results['unregistered_listed'][] = [
+                                'name' => $item['name'],
+                                'kra_pin' => $item['kra_pin'],
+                                'report_available' => true,
+                                'is_registered' => false,
+                                'has_api_data' => true,
+                            ];
+                        }
+                    }
+                }
             }
 
             // If no results found, add the search term to the no_report section
@@ -108,6 +176,92 @@ class BusinessSearchService
         }
 
         return $results;
+    }
+
+    /**
+     * Fetch and cache API data
+     *
+     * @return array
+     */
+    protected function getApiData(): array
+    {
+        $cacheKey = "{$this->sessionPrefix}api_data";
+
+        // Check if we have cached data that's still valid
+        if (Session::has($cacheKey)) {
+            $cachedData = Session::get($cacheKey);
+            if (isset($cachedData['expires_at']) && $cachedData['expires_at'] > now()->timestamp) {
+                return $cachedData['data'] ?? [];
+            }
+        }
+
+        // Fetch fresh data
+        try {
+            Log::info("Fetching credit scores from API: {$this->apiUrl}/fetch-data/");
+
+            $response = Http::timeout(30)
+                ->get("{$this->apiUrl}/fetch-data/");
+
+            if ($response->successful()) {
+                $data = $response->json() ?? [];
+
+                // Cache the data
+                Session::put($cacheKey, [
+                    'data' => $data,
+                    'expires_at' => now()->addMinutes($this->cacheTime)->timestamp,
+                    'fetched_at' => now()->timestamp
+                ]);
+
+                Log::info("Successfully fetched " . count($data) . " items from API");
+                return $data;
+            }
+
+            Log::error("Failed to fetch data from API: " . $response->status());
+            return [];
+        } catch (\Exception $e) {
+            Log::error("Exception when fetching API data: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Find item in API data by KRA PIN
+     *
+     * @param string $kraPin
+     * @return array|null
+     */
+    protected function findByKraPin(string $kraPin): ?array
+    {
+        $apiData = $this->getApiData();
+
+        foreach ($apiData as $item) {
+            if (isset($item['kra_pin']) && strtoupper($item['kra_pin']) === strtoupper($kraPin)) {
+                return $item;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Find item in API data by name
+     *
+     * @param string $name
+     * @return array|null
+     */
+    protected function findByName(string $name): ?array
+    {
+        $apiData = $this->getApiData();
+
+        foreach ($apiData as $item) {
+            if (isset($item['name']) &&
+                (stripos($item['name'], $name) !== false ||
+                    stripos($name, $item['name']) !== false)) {
+                return $item;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -140,10 +294,66 @@ class BusinessSearchService
 
             return null;
         } catch (\Exception $e) {
-            Log::error('Error generating business report: ' . $e->getMessage());
+            Log::error('Error generating business report: ' . $e->getMessage(), ['exception' => $e]);
             return [
                 'error' => 'An error occurred while generating the report. Please try again.'
             ];
+        }
+    }
+
+    /**
+     * Get total amount owed for a business by KRA PIN
+     *
+     * @param string $kraPin
+     * @return float
+     */
+    protected function getTotalAmountOwed(string $kraPin): float
+    {
+        try {
+            // Get the total amount from unpaid invoices
+            return Invoice::whereHas('debtor', function ($query) use ($kraPin) {
+                $query->where('kra_pin', $kraPin)
+                    ->where('status', 'active');
+            })->sum('due_amount');
+        } catch (\Exception $e) {
+            Log::error("Error getting total amount owed: " . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Count active listings for a business
+     *
+     * @param string $kraPin
+     * @return int
+     */
+    protected function countActiveListings(string $kraPin): int
+    {
+        try {
+            return Debtor::where('kra_pin', $kraPin)
+                ->where('status', 'active')
+                ->count();
+        } catch (\Exception $e) {
+            Log::error("Error counting active listings: " . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Count resolved listings for a business
+     *
+     * @param string $kraPin
+     * @return int
+     */
+    protected function countResolvedListings(string $kraPin): int
+    {
+        try {
+            return Debtor::where('kra_pin', $kraPin)
+                ->where('status', 'paid')
+                ->count();
+        } catch (\Exception $e) {
+            Log::error("Error counting resolved listings: " . $e->getMessage());
+            return 0;
         }
     }
 
@@ -155,35 +365,67 @@ class BusinessSearchService
      */
     protected function getRegisteredBusinessReport(Business $business)
     {
-        // Get total amount owed across all active listings
-        $totalOwed = Debtor::where('kra_pin', $business->registration_number)
-            ->where('status', 'active')
-            ->sum('amount_owed');
+        Log::info("Generating report for registered business: {$business->name} (ID: {$business->id}) with KRA PIN: {$business->registration_number}");
 
-        // Count active listings
-        $activeListings = Debtor::where('kra_pin', $business->registration_number)
-            ->where('status', 'active')
-            ->count();
+        $totalOwed = 0;
+        $activeListings = 0;
+        $resolvedListings = 0;
 
-        // Count resolved listings
-        $resolvedListings = Debtor::where('kra_pin', $business->registration_number)
-            ->where('status', 'paid')
-            ->count();
+        if ($business->registration_number) {
+            // Use API data for financial metrics if available
+            $apiData = $this->findByKraPin($business->registration_number);
+            if ($apiData && isset($apiData['Total Amount Owed'])) {
+                $totalOwed = $apiData['Total Amount Owed'];
+            } else {
+                // Fall back to database calculation
+                $totalOwed = $this->getTotalAmountOwed($business->registration_number);
+            }
 
-        // Get credit score details directly from the business model which uses the trait
+            // Get listing counts from database
+            $activeListings = $this->countActiveListings($business->registration_number);
+            $resolvedListings = $this->countResolvedListings($business->registration_number);
+        }
+
+        // Get API data for this business
+        $apiData = null;
+        $hasApiData = false;
+
+        // Try to find by KRA PIN first
+        if ($business->registration_number) {
+            $apiData = $this->findByKraPin($business->registration_number);
+            if ($apiData) {
+                Log::info("Found API data for KRA PIN: {$business->registration_number}");
+            }
+        }
+
+        // If not found by KRA PIN, try by name
+        if (!$apiData) {
+            $apiData = $this->findByName($business->name);
+            if ($apiData) {
+                Log::info("Found API data by name match: {$business->name}");
+            } else {
+                Log::info("No API data found for business: {$business->name}");
+            }
+        }
+
         $creditScore = null;
         $riskDescription = null;
         $riskClass = null;
-        $apiScoreDetails = null;
-        $hasApiScore = false;
 
-        if ($business->hasCreditScore()) {
-            $creditScore = $business->getCreditScore();
-            $riskDescription = $business->getRiskDescription();
-            $riskClass = $business->getRiskClass();
-            $apiScoreDetails = $business->getCreditScoreDetails();
-            $hasApiScore = true;
+        if ($apiData) {
+            $hasApiData = true;
+            $creditScore = isset($apiData['Composite Score']) ? $apiData['Composite Score'] : null;
+            $riskDescription = isset($apiData['Risk Description']) ? $apiData['Risk Description'] : null;
+            $riskClass = isset($apiData['Risk Class']) ? $apiData['Risk Class'] : null;
+
+            // If we have API data for Total Amount Owed, use it
+            if (isset($apiData['Total Amount Owed'])) {
+                $totalOwed = $apiData['Total Amount Owed'];
+            }
         }
+
+        // Get color for risk level
+        $riskColor = $this->getRiskColorFromClass($riskClass);
 
         return [
             'name' => $business->name,
@@ -193,10 +435,11 @@ class BusinessSearchService
             'total_owed' => $totalOwed,
             'active_listings' => $activeListings,
             'resolved_listings' => $resolvedListings,
-            'has_api_score' => $hasApiScore,
+            'has_api_score' => $hasApiData,
             'risk_description' => $riskDescription,
             'risk_class' => $riskClass,
-            'api_score_details' => $apiScoreDetails,
+            'risk_color' => $riskColor,
+            'api_score_details' => $apiData,
         ];
     }
 
@@ -209,6 +452,9 @@ class BusinessSearchService
      */
     protected function getUnregisteredBusinessReport($businessName, $kraPin)
     {
+        Log::info("Generating report for unregistered business: Name: {$businessName}, KRA PIN: {$kraPin}");
+
+        // Find the debtor records
         $query = Debtor::query();
 
         if ($businessName) {
@@ -219,60 +465,114 @@ class BusinessSearchService
             $query->orWhere('kra_pin', $kraPin);
         }
 
-        // Get total amount owed across all active listings
-        $totalOwed = $query->clone()->where('status', 'active')->sum('amount_owed');
-
-        // Count active listings
-        $activeListings = $query->clone()->where('status', 'active')->count();
-
-        // Count resolved listings
-        $resolvedListings = $query->clone()->where('status', 'paid')->count();
-
         // Get first record for name and KRA PIN
         $firstRecord = $query->first();
         $name = $firstRecord ? $firstRecord->name : $businessName;
         $pin = $firstRecord ? $firstRecord->kra_pin : $kraPin;
 
-        // Get credit score from API if KRA PIN is available
-        $creditScore = null;
-        $riskDescription = null;
-        $riskClass = null;
-        $apiScoreDetails = null;
-        $hasApiScore = false;
+        $totalOwed = 0;
+        $activeListings = 0;
+        $resolvedListings = 0;
 
         if ($pin) {
-            // Use the CreditScoreService to get the credit score by KRA PIN
-            $apiScoreDetails = $this->creditScoreService->getCreditScoreByKraPin($pin);
+            // Try to get data from API first
+            $apiData = $this->findByKraPin($pin);
+            if ($apiData && isset($apiData['Total Amount Owed'])) {
+                $totalOwed = $apiData['Total Amount Owed'];
+            } else {
+                // Fall back to database calculation
+                $totalOwed = $this->getTotalAmountOwed($pin);
+            }
 
-            if ($apiScoreDetails && isset($apiScoreDetails['Composite Score'])) {
-                $creditScore = $apiScoreDetails['Composite Score'];
-                $riskDescription = $apiScoreDetails['Risk Description'] ?? null;
-                $riskClass = $apiScoreDetails['Risk Class'] ?? null;
-                $hasApiScore = true;
+            // Get listing counts
+            $activeListings = $this->countActiveListings($pin);
+            $resolvedListings = $this->countResolvedListings($pin);
+        }
+
+        // Get API data
+        $apiData = null;
+        $hasApiData = false;
+
+        // Try to find by KRA PIN first
+        if ($pin) {
+            $apiData = $this->findByKraPin($pin);
+            if ($apiData) {
+                Log::info("Found API data for KRA PIN: {$pin}");
             }
         }
 
-        // If the debtor object has the DebtorCreditScore trait, use that
-        if (!$hasApiScore && $firstRecord && method_exists($firstRecord, 'hasCreditScore') && $firstRecord->hasCreditScore()) {
-            $creditScore = $firstRecord->getCreditScore();
-            $riskDescription = $firstRecord->getRiskDescription();
-            $riskClass = $firstRecord->getRiskClass();
-            $apiScoreDetails = $firstRecord->getCreditScoreDetails();
-            $hasApiScore = true;
+        // If not found by KRA PIN, try by name
+        if (!$apiData && $name) {
+            $apiData = $this->findByName($name);
+            if ($apiData) {
+                Log::info("Found API data by name match: {$name}");
+            } else {
+                Log::info("No API data found for business: {$name}");
+            }
         }
 
+        $creditScore = null;
+        $riskDescription = null;
+        $riskClass = null;
+
+        if ($apiData) {
+            $hasApiData = true;
+            $creditScore = isset($apiData['Composite Score']) ? $apiData['Composite Score'] : null;
+            $riskDescription = isset($apiData['Risk Description']) ? $apiData['Risk Description'] : null;
+            $riskClass = isset($apiData['Risk Class']) ? $apiData['Risk Class'] : null;
+
+            // If we have API data for Total Amount Owed, use it
+            if (isset($apiData['Total Amount Owed'])) {
+                $totalOwed = $apiData['Total Amount Owed'];
+            }
+        }
+
+        // Get color for risk level
+        $riskColor = $this->getRiskColorFromClass($riskClass);
+
         return [
-            'name' => $name,
-            'kra_pin' => $pin,
+            'name' => $name ?? ($apiData['name'] ?? 'Unknown Business'),
+            'kra_pin' => $pin ?? ($apiData['kra_pin'] ?? null),
             'is_registered' => false,
             'credit_score' => $creditScore,
             'total_owed' => $totalOwed,
             'active_listings' => $activeListings,
             'resolved_listings' => $resolvedListings,
-            'has_api_score' => $hasApiScore,
+            'has_api_score' => $hasApiData,
             'risk_description' => $riskDescription,
             'risk_class' => $riskClass,
-            'api_score_details' => $apiScoreDetails,
+            'risk_color' => $riskColor,
+            'api_score_details' => $apiData,
         ];
+    }
+
+    /**
+     * Get risk color name from risk class
+     *
+     * @param int|null $riskClass
+     * @return string
+     */
+    protected function getRiskColorFromClass(?int $riskClass): string
+    {
+        return match ($riskClass) {
+            1 => 'success',    // Low risk
+            2 => 'info',       // Low to Medium risk
+            3 => 'warning',    // Medium risk
+            4 => 'amber',      // Medium to High risk
+            5 => 'danger',     // High risk
+            default => 'gray', // Unknown or no data
+        };
+    }
+
+    /**
+     * Clear the cache
+     */
+    public function clearCache(): void
+    {
+        foreach (Session::all() as $key => $value) {
+            if (strpos($key, $this->sessionPrefix) === 0) {
+                Session::forget($key);
+            }
+        }
     }
 }

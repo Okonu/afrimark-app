@@ -18,7 +18,8 @@
     <!-- Credit Score Components Section -->
     @if(isset($businessReport['has_api_score']) && $businessReport['has_api_score'] && isset($businessReport['api_score_details']) && is_array($businessReport['api_score_details']))
         @include('filament.client.components.business-search.report-score-breakdown')
-    @else
-        @include('filament.client.components.business-search.report-explanation')
     @endif
+
+    <!-- Report Explanation Section -->
+    @include('filament.client.components.business-search.report-explanation')
 </x-filament::section>

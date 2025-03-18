@@ -7,6 +7,7 @@ use App\Traits\InvoiceCalculations;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Invoice extends Model
@@ -84,6 +85,15 @@ class Invoice extends Model
         return BusinessDebtor::where('business_id', $this->business_id)
             ->where('debtor_id', $this->debtor_id)
             ->first();
+    }
+
+    /**
+     * Get documents associated with this invoice
+     * Documents are stored in the debtor_documents table with a reference to this invoice
+     */
+    public function documents(): HasMany
+    {
+        return $this->hasMany(DebtorDocument::class, 'related_invoice_id');
     }
 
     public function isOverdue(): bool

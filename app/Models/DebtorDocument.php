@@ -17,6 +17,7 @@ class DebtorDocument extends Model
         'debtor_id',
         'type',
         'file_path',
+        'related_invoice_id',
         'original_filename',
         'uploaded_by',
         'processing_status',

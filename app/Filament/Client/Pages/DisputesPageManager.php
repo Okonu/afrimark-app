@@ -14,6 +14,8 @@ class DisputesPageManager extends Page
     protected static ?string $navigationIcon = 'heroicon-o-exclamation-triangle';
     protected static ?string $navigationLabel = 'Disputes Management';
     protected static ?int $navigationSort = 4;
+    protected static ?string $navigationGroup = 'Listings';
+
     protected static ?string $title = 'Disputes Management';
 
     protected static string $view = 'filament.client.pages.disputes-page-manager';

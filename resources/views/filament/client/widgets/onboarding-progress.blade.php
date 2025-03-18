@@ -1,5 +1,5 @@
 <x-filament::section>
-    <div class="space-y-6">
+    <div class="space-y-6 max-w-full">
         <div class="flex items-center justify-between">
             <h2 class="text-xl font-bold tracking-tight">Onboarding Progress</h2>
 
@@ -22,14 +22,14 @@
             </div>
         @else
             <div class="space-y-4">
-                <div class="w-full bg-gray-200 rounded-full h-4">
+                <div class="w-full bg-gray-200 rounded-full h-3">
                     <div
-                        class="bg-primary-600 h-4 rounded-full transition-all duration-500 ease-in-out"
+                        class="bg-primary-600 h-3 rounded-full transition-all duration-500 ease-in-out"
                         style="width: {{ $progress['percentage'] }}%"
                     ></div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div class="p-4 rounded-lg border {{ $progress['steps']['business_info'] ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-gray-50' }}">
                         <div class="flex items-start">
                             @if($progress['steps']['business_info'])

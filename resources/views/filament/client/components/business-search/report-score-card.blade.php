@@ -18,7 +18,7 @@
                         <path
                             d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                             fill="none"
-                            stroke="{{ match(isset($businessReport['risk_class']) ? $businessReport['risk_class'] : 0) {
+                            stroke="{{ match(isset($businessReport['risk_class']) ? (int)$businessReport['risk_class'] : 0) {
                                 1 => '#10b981',
                                 2 => '#22c55e',
                                 3 => '#eab308',
@@ -32,7 +32,7 @@
                         />
                     </svg>
                     <div class="absolute inset-0 flex items-center justify-center">
-                        <span class="text-2xl font-bold {{ match(isset($businessReport['risk_class']) ? $businessReport['risk_class'] : 0) {
+                        <span class="text-2xl font-bold {{ match(isset($businessReport['risk_class']) ? (int)$businessReport['risk_class'] : 0) {
                             1, 2 => 'text-green-600',
                             3 => 'text-yellow-600',
                             4, 5 => 'text-red-600',
@@ -42,13 +42,13 @@
                 </div>
 
                 <div class="mt-1 mb-2">
-                    <x-filament::badge color="{{ match(isset($businessReport['risk_class']) ? $businessReport['risk_class'] : 0) {
+                    <x-filament::badge color="{{ match(isset($businessReport['risk_class']) ? (int)$businessReport['risk_class'] : 0) {
                         1, 2 => 'success',
                         3 => 'warning',
                         4, 5 => 'danger',
                         default => 'gray',
                     } }}">
-                        {{ $this->getCreditScoreDescription($businessReport) }}
+                        {{ $businessReport['risk_description'] ?? $this->getCreditScoreDescription($businessReport) }}
                     </x-filament::badge>
                 </div>
 

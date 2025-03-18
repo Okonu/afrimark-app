@@ -16,6 +16,11 @@ class DebtorsListingWidget extends BaseWidget
     protected int | string | array $columnSpan = 'full';
     protected bool $showRecordsPerPageDropdown = false;
 
+    public static function canView(): bool
+    {
+        return false;
+    }
+
     protected function getTableQuery(): Builder
     {
         $business = Auth::user()->businesses()->first();

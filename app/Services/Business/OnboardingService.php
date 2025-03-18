@@ -111,7 +111,7 @@ class OnboardingService
             'business_info' => route('filament.client.auth.business-information'),
             'email_verification' => route('filament.client.auth.email-verification'),
             'document_upload' => route('filament.client.auth.document-upload'),
-            'add_debtors' => route('filament.client.resources.debtors.create'),
+            'add_debtors' => route('filament.client.resources.debtors.index'),
         ];
 
         return $urls[$step] ?? route('filament.client.pages.dashboard');
