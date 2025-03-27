@@ -9,7 +9,7 @@
         @include('filament.client.components.business-search.report-score-card')
 
         <!-- Financial Summary Card -->
-        @include('filament.client.components.business-search.report-financial-card')
+{{--        @include('filament.client.components.business-search.report-financial-card')--}}
 
         <!-- Listings Summary Card -->
         @include('filament.client.components.business-search.report-listings-card')

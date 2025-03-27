@@ -71,23 +71,23 @@
                     </p>
                 </div>
 
-                <div class="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">
-                    <div class="flex items-center gap-3 mb-2">
-                        <div class="p-2 bg-blue-100 text-blue-600 rounded-lg">
-                            <x-heroicon-s-banknotes class="h-5 w-5" />
-                        </div>
-                        <h4 class="font-medium text-gray-900">Total Value</h4>
-                    </div>
-                    <div class="flex items-center justify-between mb-2">
-                        <p class="text-xs text-gray-600">Transaction amount:</p>
-                        <span class="text-xl font-bold text-blue-600">
-                            KES {{ number_format($businessReport['total_owed'] ?? 0, 0) }}
-                        </span>
-                    </div>
-                    <p class="text-xs text-gray-500 mt-2">
-                        The total value of all transaction records in our system associated with this business.
-                    </p>
-                </div>
+{{--                <div class="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">--}}
+{{--                    <div class="flex items-center gap-3 mb-2">--}}
+{{--                        <div class="p-2 bg-blue-100 text-blue-600 rounded-lg">--}}
+{{--                            <x-heroicon-s-banknotes class="h-5 w-5" />--}}
+{{--                        </div>--}}
+{{--                        <h4 class="font-medium text-gray-900">Total Value</h4>--}}
+{{--                    </div>--}}
+{{--                    <div class="flex items-center justify-between mb-2">--}}
+{{--                        <p class="text-xs text-gray-600">Transaction amount:</p>--}}
+{{--                        <span class="text-xl font-bold text-blue-600">--}}
+{{--                            KES {{ number_format($businessReport['total_owed'] ?? 0, 0) }}--}}
+{{--                        </span>--}}
+{{--                    </div>--}}
+{{--                    <p class="text-xs text-gray-500 mt-2">--}}
+{{--                        The total value of all transaction records in our system associated with this business.--}}
+{{--                    </p>--}}
+{{--                </div>--}}
 
                 <div class="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">
                     <div class="flex items-center gap-3 mb-2">

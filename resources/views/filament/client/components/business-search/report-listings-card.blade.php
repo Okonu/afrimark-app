@@ -31,15 +31,15 @@
                 </p>
             </div>
 
-            <div>
-                <span class="text-xs font-medium text-gray-500">Total Amount</span>
-                <p class="text-lg font-semibold text-blue-600">
-                    KES {{ number_format($businessReport['total_owed'] ?? 0, 0) }}
-                </p>
-                <p class="text-xs text-gray-500 mt-1">
-                    Combined value of all transactions recorded in our system.
-                </p>
-            </div>
+{{--            <div>--}}
+{{--                <span class="text-xs font-medium text-gray-500">Total Amount</span>--}}
+{{--                <p class="text-lg font-semibold text-blue-600">--}}
+{{--                    KES {{ number_format($businessReport['total_owed'] ?? 0, 0) }}--}}
+{{--                </p>--}}
+{{--                <p class="text-xs text-gray-500 mt-1">--}}
+{{--                    Combined value of all transactions recorded in our system.--}}
+{{--                </p>--}}
+{{--            </div>--}}
         </div>
     </div>
 </div>

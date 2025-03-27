@@ -135,21 +135,21 @@
                         </div>
                     @endif
 
-                    @if(isset($businessReport['api_score_details']['Total Amount Owed']))
-                        <div>
-                            <p class="text-xs text-gray-500">Total Amount Owed</p>
-                            <p class="font-medium text-sm">
-                                KES {{ number_format($businessReport['api_score_details']['Total Amount Owed'], 2) }}
-                            </p>
-                        </div>
-                    @else
-                        <div>
-                            <p class="text-xs text-gray-500">Total Amount Owed</p>
-                            <p class="font-medium text-sm">
-                                KES {{ number_format($businessReport['total_owed'] ?? 0, 2) }}
-                            </p>
-                        </div>
-                    @endif
+{{--                    @if(isset($businessReport['api_score_details']['Total Amount Owed']))--}}
+{{--                        <div>--}}
+{{--                            <p class="text-xs text-gray-500">Total Amount Owed</p>--}}
+{{--                            <p class="font-medium text-sm">--}}
+{{--                                KES {{ number_format($businessReport['api_score_details']['Total Amount Owed'], 2) }}--}}
+{{--                            </p>--}}
+{{--                        </div>--}}
+{{--                    @else--}}
+{{--                        <div>--}}
+{{--                            <p class="text-xs text-gray-500">Total Amount Owed</p>--}}
+{{--                            <p class="font-medium text-sm">--}}
+{{--                                KES {{ number_format($businessReport['total_owed'] ?? 0, 2) }}--}}
+{{--                            </p>--}}
+{{--                        </div>--}}
+{{--                    @endif--}}
                 </div>
             </div>
         </div>
