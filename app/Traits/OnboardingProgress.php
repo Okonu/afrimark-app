@@ -1,20 +1,16 @@
 <?php
 
-namespace App\Filament\Client\Widgets;
+namespace App\Traits;
 
-use App\Services\Business\OnboardingService;
-use Filament\Widgets\Widget;
 use Illuminate\Support\Facades\Auth;
+use App\Services\Business\OnboardingService;
 
-class OnboardingProgressWidget extends Widget
+trait OnboardingProgress
 {
-    protected static string $view = 'filament.client.widgets.onboarding-progress';
-    protected int | string | array $columnSpan = 'full';
-
-    protected function getViewData(): array
+    public function getOnboardingProgress(): array
     {
         $user = Auth::user();
-        $business = $user->businesses()->first();
+        $business = $user ? $user->businesses()->first() : null;
 
         if (!$business) {
             return [

@@ -5,6 +5,7 @@ namespace App\Services\Search;
 use App\Models\Business;
 use App\Models\Debtor;
 use App\Models\Invoice;
+use App\Traits\BusinessListingsCalculator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -13,6 +14,8 @@ use Illuminate\Support\Facades\DB;
 
 class BusinessSearchService
 {
+    use BusinessListingsCalculator;
+
     /**
      * @var string
      */
@@ -371,6 +374,25 @@ class BusinessSearchService
         $activeListings = 0;
         $resolvedListings = 0;
 
+        // Get the listings metrics
+        $listingsCounts = [
+            'negative' => 0,
+            'positive' => 0,
+            'total' => 0
+        ];
+
+        $invoiceCounts = [
+            'negative' => 0,
+            'positive' => 0,
+            'total' => 0
+        ];
+
+        $invoiceAmounts = [
+            'negative' => 0,
+            'positive' => 0,
+            'total' => 0
+        ];
+
         if ($business->registration_number) {
             // Use API data for financial metrics if available
             $apiData = $this->findByKraPin($business->registration_number);
@@ -384,6 +406,11 @@ class BusinessSearchService
             // Get listing counts from database
             $activeListings = $this->countActiveListings($business->registration_number);
             $resolvedListings = $this->countResolvedListings($business->registration_number);
+
+            // Get the listings metrics using the BusinessListingsCalculator trait
+            $listingsCounts = $this->getBusinessListingsCounts($business->registration_number);
+            $invoiceCounts = $this->getBusinessInvoiceCounts($business->registration_number);
+            $invoiceAmounts = $this->getBusinessInvoiceAmounts($business->registration_number);
         }
 
         // Get API data for this business
@@ -440,6 +467,16 @@ class BusinessSearchService
             'risk_class' => $riskClass,
             'risk_color' => $riskColor,
             'api_score_details' => $apiData,
+            // Listings metrics
+            'negative_listings' => $listingsCounts['negative'],
+            'positive_listings' => $listingsCounts['positive'],
+            'total_listings' => $listingsCounts['total'],
+            'negative_invoices' => $invoiceCounts['negative'],
+            'positive_invoices' => $invoiceCounts['positive'],
+            'total_invoices' => $invoiceCounts['total'],
+            'negative_amount' => $invoiceAmounts['negative'],
+            'positive_amount' => $invoiceAmounts['positive'],
+            'total_amount' => $invoiceAmounts['total'],
         ];
     }
 
@@ -474,6 +511,25 @@ class BusinessSearchService
         $activeListings = 0;
         $resolvedListings = 0;
 
+        // Get the listings metrics
+        $listingsCounts = [
+            'negative' => 0,
+            'positive' => 0,
+            'total' => 0
+        ];
+
+        $invoiceCounts = [
+            'negative' => 0,
+            'positive' => 0,
+            'total' => 0
+        ];
+
+        $invoiceAmounts = [
+            'negative' => 0,
+            'positive' => 0,
+            'total' => 0
+        ];
+
         if ($pin) {
             // Try to get data from API first
             $apiData = $this->findByKraPin($pin);
@@ -487,6 +543,11 @@ class BusinessSearchService
             // Get listing counts
             $activeListings = $this->countActiveListings($pin);
             $resolvedListings = $this->countResolvedListings($pin);
+
+            // Get the listings metrics using the BusinessListingsCalculator trait
+            $listingsCounts = $this->getBusinessListingsCounts($pin);
+            $invoiceCounts = $this->getBusinessInvoiceCounts($pin);
+            $invoiceAmounts = $this->getBusinessInvoiceAmounts($pin);
         }
 
         // Get API data
@@ -543,6 +604,16 @@ class BusinessSearchService
             'risk_class' => $riskClass,
             'risk_color' => $riskColor,
             'api_score_details' => $apiData,
+            // Listings metrics
+            'negative_listings' => $listingsCounts['negative'],
+            'positive_listings' => $listingsCounts['positive'],
+            'total_listings' => $listingsCounts['total'],
+            'negative_invoices' => $invoiceCounts['negative'],
+            'positive_invoices' => $invoiceCounts['positive'],
+            'total_invoices' => $invoiceCounts['total'],
+            'negative_amount' => $invoiceAmounts['negative'],
+            'positive_amount' => $invoiceAmounts['positive'],
+            'total_amount' => $invoiceAmounts['total'],
         ];
     }
 

@@ -53,6 +53,7 @@ class CreateDebtor extends CreateRecord
 
                         Select::make('status')
                             ->label('Status')
+                            ->disabled()
                             ->options([
                                 DebtorStatus::PENDING->value => DebtorStatus::PENDING->label(),
                                 DebtorStatus::ACTIVE->value => DebtorStatus::ACTIVE->label(),

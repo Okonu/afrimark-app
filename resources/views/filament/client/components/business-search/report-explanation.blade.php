@@ -62,32 +62,31 @@
                     <div class="flex items-center justify-between mb-2">
                         <p class="text-xs text-gray-600">Network records:</p>
                         <span class="text-xl font-bold text-blue-600">
-                            {{ ($businessReport['active_listings'] ?? 0) + ($businessReport['resolved_listings'] ?? 0) }}
+                            {{ $businessReport['total_listings'] ?? 0 }}
                         </span>
                     </div>
                     <p class="text-xs text-gray-500 mt-2">
                         The number of businesses in our network that have registered transactions with this entity.
                         Listings are neutral records and do not inherently indicate positive or negative status.
                     </p>
-                </div>
 
-{{--                <div class="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">--}}
-{{--                    <div class="flex items-center gap-3 mb-2">--}}
-{{--                        <div class="p-2 bg-blue-100 text-blue-600 rounded-lg">--}}
-{{--                            <x-heroicon-s-banknotes class="h-5 w-5" />--}}
-{{--                        </div>--}}
-{{--                        <h4 class="font-medium text-gray-900">Total Value</h4>--}}
-{{--                    </div>--}}
-{{--                    <div class="flex items-center justify-between mb-2">--}}
-{{--                        <p class="text-xs text-gray-600">Transaction amount:</p>--}}
-{{--                        <span class="text-xl font-bold text-blue-600">--}}
-{{--                            KES {{ number_format($businessReport['total_owed'] ?? 0, 0) }}--}}
-{{--                        </span>--}}
-{{--                    </div>--}}
-{{--                    <p class="text-xs text-gray-500 mt-2">--}}
-{{--                        The total value of all transaction records in our system associated with this business.--}}
-{{--                    </p>--}}
-{{--                </div>--}}
+                    <div class="mt-3 pt-3 border-t border-gray-100">
+                        <div class="flex items-center justify-between text-xs">
+                            <div class="flex items-center">
+                                <div class="h-2 w-2 rounded-full bg-green-500 mr-1"></div>
+                                <span>Positive:</span>
+                            </div>
+                            <span class="font-medium">{{ $businessReport['positive_listings'] ?? 0 }}</span>
+                        </div>
+                        <div class="flex items-center justify-between text-xs mt-1">
+                            <div class="flex items-center">
+                                <div class="h-2 w-2 rounded-full bg-red-500 mr-1"></div>
+                                <span>Negative:</span>
+                            </div>
+                            <span class="font-medium">{{ $businessReport['negative_listings'] ?? 0 }}</span>
+                        </div>
+                    </div>
+                </div>
 
                 <div class="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">
                     <div class="flex items-center gap-3 mb-2">
@@ -121,7 +120,7 @@
             @php
                 $activeListings = $businessReport['active_listings'] ?? 0;
                 $resolvedListings = $businessReport['resolved_listings'] ?? 0;
-                $totalListings = $activeListings + $resolvedListings;
+                $totalListings = $businessReport['total_listings'] ?? 0;
                 $disputedListings = $businessReport['disputed_listings'] ?? 0;
             @endphp
 
@@ -156,6 +155,34 @@
                             </div>
                         </div>
                     @endif
+
+                    <div class="mb-4">
+                        <p class="font-medium text-gray-700 mb-1">Listing Breakdown</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <span>Positive Listings</span>
+                                    <span class="font-medium text-green-600">
+                                        {{ $businessReport['positive_listings'] ?? 0 }}
+                                    </span>
+                                </div>
+                                <p class="text-gray-500 text-xs">
+                                    Businesses that have listed this entity with no overdue invoices
+                                </p>
+                            </div>
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <span>Negative Listings</span>
+                                    <span class="font-medium text-red-600">
+                                        {{ $businessReport['negative_listings'] ?? 0 }}
+                                    </span>
+                                </div>
+                                <p class="text-gray-500 text-xs">
+                                    Businesses that have listed this entity with at least one overdue invoice
+                                </p>
+                            </div>
+                        </div>
+                    </div>
 
                     @if($disputedListings > 0)
                         <p class="mt-2 text-amber-600">
