@@ -54,8 +54,8 @@ class DocumentManager extends Page implements HasForms
 
     // For document details
     public $selectedDocument = null;
-    public $isViewModalOpen = false;
     public $processingResult = null;
+    public bool $isViewModalOpen = false;
 
     protected $queryString = ['activeTab'];
 
@@ -162,10 +162,10 @@ class DocumentManager extends Page implements HasForms
 
                 FileUpload::make('document')
                     ->label('Upload Document')
-                    ->acceptedFileTypes(['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'])
+                    ->acceptedFileTypes(['application/pdf'])
                     ->maxSize(5120) // 5MB
                     ->required()
-                    ->helperText('Upload PDF, Word, or Excel files (max 5MB)')
+                    ->helperText('Upload PDF files only (max 5MB)')
             ]);
     }
 
@@ -212,13 +212,6 @@ class DocumentManager extends Page implements HasForms
     {
         $this->resetForm();
         $this->isUploadModalOpen = true;
-
-        Notification::make()
-            ->title('Debug: Modal Status')
-            ->body('Upload modal should be open now. isUploadModalOpen = ' . ($this->isUploadModalOpen ? 'true' : 'false'))
-            ->info()
-            ->send();
-
         $this->dispatch('open-modal', id: 'upload-document-modal');
     }
 
@@ -245,12 +238,6 @@ class DocumentManager extends Page implements HasForms
      */
     public function submit(): void
     {
-        Notification::make()
-            ->title('Debug: Submit Clicked')
-            ->body('Form submission started')
-            ->info()
-            ->send();
-
         $data = $this->form->getState();
 
         $business = Auth::user()->businesses()->first();
@@ -276,9 +263,27 @@ class DocumentManager extends Page implements HasForms
             $path = $file->store('documents/' . $business->id);
         }
 
+        // Validate that the file is a PDF
+        $extension = strtolower(pathinfo($originalFilename, PATHINFO_EXTENSION));
+        if ($extension !== 'pdf') {
+            Notification::make()
+                ->title('Error')
+                ->body('Only PDF files are supported at this time.')
+                ->danger()
+                ->send();
+            return;
+        }
+
         $documentName = $data['documentName'];
 
         try {
+            // Show a notification that processing has started
+            Notification::make()
+                ->title('Document Upload')
+                ->body('Document uploaded. Processing starting...')
+                ->info()
+                ->send();
+
             if ($data['category'] === 'business') {
                 try {
                     // Check if the document type exists in the enum
@@ -311,11 +316,31 @@ class DocumentManager extends Page implements HasForms
                 ]);
             }
 
-            Notification::make()
-                ->title('Document Uploaded')
-                ->body('Your document has been uploaded and will be processed shortly.')
-                ->success()
-                ->send();
+            // Document processing happens automatically via the trait
+
+            // Refresh document status after processing
+            $document->refresh();
+
+            // Display appropriate notification based on processing result
+            if ($document->processing_status === 'completed') {
+                Notification::make()
+                    ->title('Success')
+                    ->body('Document uploaded and processed successfully.')
+                    ->success()
+                    ->send();
+            } elseif ($document->processing_status === 'failed') {
+                Notification::make()
+                    ->title('Document Uploaded')
+                    ->body('Document was uploaded but processing failed. You can retry processing from the document view.')
+                    ->warning()
+                    ->send();
+            } else {
+                Notification::make()
+                    ->title('Document Uploaded')
+                    ->body('Document has been uploaded. Processing status: ' . $document->processing_status)
+                    ->success()
+                    ->send();
+            }
 
             $this->closeUploadModal();
             $this->loadData();
@@ -350,8 +375,9 @@ class DocumentManager extends Page implements HasForms
             $this->selectedDocument = DisputeDocument::findOrFail($documentId);
         }
 
-        if ($this->selectedDocument && $this->selectedDocument->isProcessed()) {
-            $this->processingResult = $this->selectedDocument->getExtractedData();
+        if ($this->selectedDocument) {
+            // Get API response regardless of processing status
+            $this->processingResult = $this->selectedDocument->getApiResponse();
         }
 
         $this->isViewModalOpen = true;
@@ -432,16 +458,36 @@ class DocumentManager extends Page implements HasForms
             return;
         }
 
+        // Check if file exists and is a PDF
+        if (!Storage::exists($document->file_path)) {
+            Notification::make()
+                ->title('Error')
+                ->body('Document file not found.')
+                ->danger()
+                ->send();
+            return;
+        }
+
+        $extension = strtolower(pathinfo($document->file_path, PATHINFO_EXTENSION));
+        if ($extension !== 'pdf') {
+            Notification::make()
+                ->title('Error')
+                ->body('Only PDF files can be processed at this time.')
+                ->danger()
+                ->send();
+            return;
+        }
+
         if ($document->queueForProcessing()) {
             Notification::make()
                 ->title('Document Queued')
-                ->body('Your document has been queued for reprocessing.')
+                ->body('Your document has been queued for processing.')
                 ->success()
                 ->send();
         } else {
             Notification::make()
                 ->title('Error')
-                ->body('Unable to queue document for reprocessing.')
+                ->body('Unable to queue document for processing.')
                 ->danger()
                 ->send();
         }
@@ -530,10 +576,10 @@ class DocumentManager extends Page implements HasForms
         $extension = pathinfo($filename, PATHINFO_EXTENSION);
 
         return match(strtolower($extension)) {
-            'pdf' => 'heroicon-o-document-text',
-            'doc', 'docx' => 'heroicon-o-document',
-            'xls', 'xlsx' => 'heroicon-o-table-cells',
-            default => 'heroicon-o-document',
+            'pdf' => 'document-text',
+            'doc', 'docx' => 'document',
+            'xls', 'xlsx' => 'table-cells',
+            default => 'document',
         };
     }
 
@@ -567,5 +613,95 @@ class DocumentManager extends Page implements HasForms
         }
 
         return 0;
+    }
+
+    /**
+     * View document processing logs
+     */
+    public function viewDocumentLogs($documentId, $type): void
+    {
+        if ($type === 'business') {
+            $document = BusinessDocument::findOrFail($documentId);
+        } elseif ($type === 'debtor') {
+            $document = DebtorDocument::findOrFail($documentId);
+        } elseif ($type === 'dispute') {
+            $document = DisputeDocument::findOrFail($documentId);
+        } else {
+            return;
+        }
+
+        // Build log information
+        $logs = [];
+
+        // Add creation log
+        $logs[] = [
+            'time' => $document->created_at->format('Y-m-d H:i:s'),
+            'message' => 'Document uploaded',
+            'status' => 'info'
+        ];
+
+        // Add processing logs
+        if ($document->processing_status) {
+            if ($document->processing_status === 'queued') {
+                $logs[] = [
+                    'time' => $document->updated_at->format('Y-m-d H:i:s'),
+                    'message' => 'Document queued for processing',
+                    'status' => 'info'
+                ];
+            }
+
+            if ($document->processing_status === 'processing') {
+                $logs[] = [
+                    'time' => $document->updated_at->format('Y-m-d H:i:s'),
+                    'message' => 'Document is currently being processed',
+                    'status' => 'warning'
+                ];
+            }
+
+            if ($document->processing_status === 'completed') {
+                $logs[] = [
+                    'time' => $document->processed_at->format('Y-m-d H:i:s'),
+                    'message' => 'Document processed successfully',
+                    'status' => 'success'
+                ];
+
+                if (isset($document->processing_result['duration_ms'])) {
+                    $logs[] = [
+                        'time' => $document->processed_at->format('Y-m-d H:i:s'),
+                        'message' => 'Processing took ' . ($document->processing_result['duration_ms'] / 1000) . ' seconds',
+                        'status' => 'info'
+                    ];
+                }
+
+                if (isset($document->processing_result['endpoint'])) {
+                    $logs[] = [
+                        'time' => $document->processed_at->format('Y-m-d H:i:s'),
+                        'message' => 'API endpoint used: ' . $document->processing_result['endpoint'],
+                        'status' => 'info'
+                    ];
+                }
+            }
+
+            if ($document->processing_status === 'failed') {
+                $logs[] = [
+                    'time' => $document->updated_at->format('Y-m-d H:i:s'),
+                    'message' => 'Document processing failed',
+                    'status' => 'danger'
+                ];
+
+                if (isset($document->processing_result['error'])) {
+                    $logs[] = [
+                        'time' => $document->updated_at->format('Y-m-d H:i:s'),
+                        'message' => 'Error: ' . $document->processing_result['error'],
+                        'status' => 'danger'
+                    ];
+                }
+            }
+        }
+
+        // Store logs in a property for displaying in a modal
+        $this->documentLogs = $logs;
+        $this->selectedDocument = $document;
+        $this->isLogModalOpen = true;
     }
 }

@@ -4,19 +4,18 @@ namespace App\Services\Debtor;
 
 use App\Models\Business;
 use App\Models\Debtor;
-use App\Models\DebtorDocument;
-use App\Notifications\DebtorListingNotification;
+use App\Jobs\ProcessDebtorNotification;
+use App\Jobs\ProcessDebtorDocuments;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class DebtorService
 {
     /**
-     * Create a new debtor
+     * Create a new debtor with optimized performance
      *
      * @param \App\Models\Business $business
      * @param array $data
@@ -35,32 +34,89 @@ class DebtorService
 
         $listingGoesLiveAt = Carbon::now()->addDays(7);
 
+        // Create debtor record first
         $debtor = Debtor::create([
             'business_id' => $business->id,
             'name' => $data['name'],
             'kra_pin' => $data['kra_pin'],
             'email' => $data['email'],
-            'amount_owed' => $data['amount_owed'],
+            'amount_owed' => $data['amount_owed'] ?? 0,
             'invoice_number' => $data['invoice_number'] ?? null,
             'status' => 'pending',
             'listing_goes_live_at' => $listingGoesLiveAt,
             'verification_token' => Str::random(64),
         ]);
 
+        // Queue document processing and notification - don't process inline
         if (isset($data['documents']) && is_array($data['documents'])) {
-            foreach ($data['documents'] as $document) {
-                DebtorDocument::create([
-                    'debtor_id' => $debtor->id,
-                    'file_path' => $document,
-                    'original_filename' => $document,
-                    'uploaded_by' => Auth::id(),
-                ]);
-            }
+            $this->queueDocumentProcessing($debtor, $data['documents']);
         }
 
-        $this->sendDebtorNotification($debtor);
+        $this->queueDebtorNotification($debtor);
 
         return $debtor;
+    }
+
+    /**
+     * Queue notification for debtor
+     *
+     * @param \App\Models\Debtor $debtor
+     * @return void
+     */
+    public function queueDebtorNotification(Debtor $debtor)
+    {
+        try {
+            ProcessDebtorNotification::dispatch($debtor)
+                ->onQueue('notifications');
+
+            Log::info("Debtor notification queued for: {$debtor->email}");
+        } catch (\Exception $e) {
+            Log::error("Failed to queue debtor notification: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Queue document processing without any inline processing
+     *
+     * @param \App\Models\Debtor $debtor
+     * @param array $documentGroups
+     * @return void
+     */
+    public function queueDocumentProcessing(Debtor $debtor, array $documentGroups)
+    {
+        try {
+            ProcessDebtorDocuments::dispatch($debtor, $documentGroups, Auth::id() ?? 1)
+                ->onQueue('document-processing');
+
+            Log::info("Document processing queued for debtor ID: {$debtor->id}");
+        } catch (\Exception $e) {
+            Log::error("Failed to queue document processing: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Process debtor documents - this is for backward compatibility
+     * It simply queues the job now without any inline processing
+     *
+     * @param \App\Models\Debtor $debtor
+     * @param array $documentGroups
+     * @return void
+     */
+    public function processDebtorDocuments(Debtor $debtor, array $documentGroups)
+    {
+        $this->queueDocumentProcessing($debtor, $documentGroups);
+    }
+
+    /**
+     * Send notification to debtor - this is for backward compatibility
+     * It simply queues the job now without any inline processing
+     *
+     * @param \App\Models\Debtor $debtor
+     * @return void
+     */
+    public function sendDebtorNotification(Debtor $debtor)
+    {
+        $this->queueDebtorNotification($debtor);
     }
 
     /**
@@ -86,7 +142,7 @@ class DebtorService
     }
 
     /**
-     * Process bulk debtor import
+     * Process bulk debtor import with improved performance
      *
      * @param \App\Models\Business $business
      * @param array $debtors
@@ -101,14 +157,47 @@ class DebtorService
             'errors' => [],
         ];
 
-        foreach ($debtors as $index => $debtorData) {
-            try {
-                $debtor = $this->createDebtor($business, $debtorData);
-                $results['success']++;
-                $results['debtors'][] = $debtor->id;
-            } catch (\Exception $e) {
-                $results['failed']++;
-                $results['errors'][$index] = $e->getMessage();
+        // Process in smaller batches to prevent timeout
+        $batches = array_chunk($debtors, 5);
+
+        foreach ($batches as $batchIndex => $batch) {
+            foreach ($batch as $index => $debtorData) {
+                try {
+                    // Create minimal debtor first
+                    $debtor = Debtor::create([
+                        'name' => $debtorData['name'],
+                        'kra_pin' => $debtorData['kra_pin'],
+                        'email' => $debtorData['email'],
+                        'status' => 'pending',
+                        'listing_goes_live_at' => Carbon::now()->addDays(7),
+                        'verification_token' => Str::random(64),
+                    ]);
+
+                    // Attach business relation
+                    $debtor->businesses()->attach($business->id, [
+                        'amount_owed' => $debtorData['amount_owed'] ?? 0,
+                        'average_payment_terms' => 0,
+                        'median_payment_terms' => 0,
+                        'average_days_overdue' => 0,
+                        'median_days_overdue' => 0,
+                        'average_dbt_ratio' => 0,
+                        'median_dbt_ratio' => 0,
+                    ]);
+
+                    // Queue document processing if present
+                    if (isset($debtorData['documents']) && is_array($debtorData['documents'])) {
+                        $this->queueDocumentProcessing($debtor, $debtorData['documents']);
+                    }
+
+                    // Queue notification
+                    $this->queueDebtorNotification($debtor);
+
+                    $results['success']++;
+                    $results['debtors'][] = $debtor->id;
+                } catch (\Exception $e) {
+                    $results['failed']++;
+                    $results['errors'][$batchIndex * 5 + $index] = $e->getMessage();
+                }
             }
         }
 
@@ -146,62 +235,6 @@ class DebtorService
                     ->orWhere('status', 'pending');
             })
             ->get();
-    }
-
-    /**
-     * Send notification to debtor
-     *
-     * @param \App\Models\Debtor $debtor
-     * @return void
-     */
-    public function sendDebtorNotification(Debtor $debtor)
-    {
-        try {
-            if (!$debtor->relationLoaded('business')) {
-                $debtor->load('business');
-            }
-
-            $businessName = $debtor->business ? $debtor->business->name : 'A business on our platform';
-
-            if (!$debtor->verification_token) {
-                $debtor->verification_token = Str::random(64);
-                $debtor->save();
-            }
-
-            $registrationUrl = route('debtor.verify', [
-                'debtor_id' => $debtor->id,
-                'token' => $debtor->verification_token
-            ]);
-
-            $loginUrl = route('filament.client.auth.login', [
-                'redirect' => route('filament.client.pages.disputes-page-manager', ['tab' => 'disputable-listings'])
-            ]);
-
-            $content = view('emails.debtor-listing', [
-                'debtor' => $debtor,
-                'businessName' => $businessName,
-                'amountOwed' => number_format($debtor->amount_owed, 2),
-                'invoiceNumber' => $debtor->invoice_number ?? 'N/A',
-                'disputeUrl' => $loginUrl,
-                'registrationUrl' => $registrationUrl,
-                'appName' => config('app.name')
-            ])->render();
-
-            Mail::html($content, function ($message) use ($debtor) {
-                $message->to($debtor->email)
-                    ->subject('Important: Your Business Has Been Listed as a Debtor');
-            });
-
-            \Log::info("Debtor notification sent successfully to: {$debtor->email}");
-        } catch (\Exception $e) {
-            \Log::error("Failed to send debtor notification: " . $e->getMessage());
-
-            // Fallback plain text email
-            Mail::raw("Your business has been listed as a debtor for {$debtor->amount_owed} KES. This listing will become publicly visible in 7 days unless resolved.", function($message) use ($debtor) {
-                $message->to($debtor->email)
-                    ->subject('Important: Your Business Has Been Listed as a Debtor');
-            });
-        }
     }
 
     /**

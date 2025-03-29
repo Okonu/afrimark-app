@@ -51,6 +51,7 @@ trait BusinessListingsCalculator
         // We need to handle businesses that have both overdue and non-overdue invoices
         // Such businesses should only be counted in the negative listings or not
         // to inquire about this.
+        //-- numero uno: - give  a grace period of 7-14 days, for a -ve listing, positive listing to also be under the same grace period.
         $uniquePositiveBusinesses = array_diff($businessesWithNonOverdueInvoices, $businessesWithOverdueInvoices);
 
         return [

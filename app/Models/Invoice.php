@@ -2,8 +2,7 @@
 
 namespace App\Models;
 
-use App\Traits\BusinessDebtorSyncing;
-use App\Traits\InvoiceCalculations;
+use App\Services\Calculations\InvoiceCalculationService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,7 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Invoice extends Model
 {
-    use SoftDeletes, HasFactory, BusinessDebtorSyncing, InvoiceCalculations;
+    use SoftDeletes, HasFactory;
 
     protected $fillable = [
         'debtor_id',
@@ -51,6 +50,15 @@ class Invoice extends Model
                 $invoice->recalculateMetrics();
             }
         });
+
+        static::saved(function ($invoice) {
+            if ($invoice->wasChanged(['due_amount', 'payment_terms', 'days_overdue', 'dbt_ratio'])) {
+                app(InvoiceCalculationService::class)->updateBusinessDebtorMetrics(
+                    $invoice->business_id,
+                    $invoice->debtor_id
+                );
+            }
+        });
     }
 
     /**
@@ -58,11 +66,12 @@ class Invoice extends Model
      */
     public function recalculateMetrics()
     {
-        $metrics = $this->calculateInvoiceMetrics([
-            'invoice_date' => $this->invoice_date,
-            'due_date' => $this->due_date,
-            'payment_terms' => $this->payment_terms,
-        ]);
+        $calculationService = app(InvoiceCalculationService::class);
+
+        $metrics = $calculationService->calculateInvoiceMetrics(
+            $this->invoice_date,
+            $this->due_date
+        );
 
         $this->payment_terms = $metrics['payment_terms'];
         $this->due_date = $metrics['due_date'];

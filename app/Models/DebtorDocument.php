@@ -40,6 +40,11 @@ class DebtorDocument extends Model
         return $this->belongsTo(User::class, 'uploaded_by');
     }
 
+    /**
+     * Extract invoice information from processed document
+     *
+     * @return array|null
+     */
     public function extractInvoiceInformation(): ?array
     {
         if (!$this->isProcessingSuccessful()) {

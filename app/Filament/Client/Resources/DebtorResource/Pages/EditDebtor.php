@@ -2,136 +2,50 @@
 
 namespace App\Filament\Client\Resources\DebtorResource\Pages;
 
-use App\Enums\DebtorStatus;
-use App\Enums\DocumentType;
 use App\Filament\Client\Resources\DebtorResource;
-use Filament\Forms;
-use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Repeater;
-use Filament\Forms\Components\Section;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
+use App\Filament\Client\Resources\DebtorResource\DebtorFormSchema;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Support\Facades\Auth;
 use Filament\Notifications\Notification;
+use Illuminate\Support\Facades\DB;
 
 class EditDebtor extends EditRecord
 {
     protected static string $resource = DebtorResource::class;
 
+    public $calculatedAmountOwed = 0;
+    public $existingInvoicesTotal = 0;
+    public $newInvoicesTotal = 0;
+
     public function form(Form $form): Form
     {
-        return $form
-            ->schema([
-                Section::make('Debtor Information')
-                    ->schema([
-                        TextInput::make('name')
-                            ->label('Business Name')
-                            ->required()
-                            ->maxLength(255),
+        return $form->schema(
+            DebtorFormSchema::getSchema(
+                false,
+                function () {}, // Not used in edit mode
+                function (Get $get) {
+                    return $this->calculateNewInvoicesTotal($get);
+                }
+            )
+        );
+    }
 
-                        TextInput::make('kra_pin')
-                            ->label('KRA PIN')
-                            ->required()
-                            ->maxLength(255),
+    protected function calculateNewInvoicesTotal(Get $get): void
+    {
+        $invoices = $get('new_invoices');
+        $total = 0;
 
-                        TextInput::make('email')
-                            ->label('Business Email')
-                            ->email()
-                            ->required()
-                            ->maxLength(255),
+        if (is_array($invoices)) {
+            foreach ($invoices as $invoice) {
+                if (isset($invoice['due_amount']) && is_numeric($invoice['due_amount'])) {
+                    $total += floatval($invoice['due_amount']);
+                }
+            }
+        }
 
-                        TextInput::make('amount_owed')
-                            ->label('Amount Owed')
-                            ->numeric()
-                            ->required()
-                            ->prefix('KES'),
-
-                        Select::make('status')
-                            ->label('Status')
-                            ->options([
-                                DebtorStatus::PENDING->value => DebtorStatus::PENDING->label(),
-                                DebtorStatus::ACTIVE->value => DebtorStatus::ACTIVE->label(),
-                            ])
-                            ->required(),
-                    ])
-                    ->columns(2),
-
-                Section::make('Add New Invoice')
-                    ->schema([
-                        Repeater::make('new_invoices')
-                            ->label('Add New Invoices')
-                            ->schema([
-                                TextInput::make('invoice_number')
-                                    ->label('Invoice Number')
-                                    ->required()
-                                    ->maxLength(100),
-
-                                Forms\Components\DatePicker::make('invoice_date')
-                                    ->label('Invoice Date')
-                                    ->required(),
-
-                                Forms\Components\DatePicker::make('due_date')
-                                    ->label('Due Date')
-                                    ->required(),
-
-                                TextInput::make('invoice_amount')
-                                    ->label('Invoice Amount')
-                                    ->numeric()
-                                    ->required()
-                                    ->prefix('KES'),
-
-                                TextInput::make('due_amount')
-                                    ->label('Due Amount')
-                                    ->helperText('Amount still owed on this invoice')
-                                    ->numeric()
-                                    ->required()
-                                    ->prefix('KES'),
-
-                                TextInput::make('payment_terms')
-                                    ->label('Payment Terms (Days)')
-                                    ->numeric()
-                                    ->integer()
-                                    ->required()
-                                    ->placeholder('e.g. 30, 60, 90'),
-                            ])
-                            ->columns(3)
-                            ->defaultItems(0)
-                            ->addActionLabel('Add New Invoice')
-                            ->collapsible(),
-                    ]),
-
-                Section::make('Upload Additional Documents')
-                    ->schema([
-                        Repeater::make('new_documents')
-                            ->label('Additional Documents')
-                            ->schema([
-                                Select::make('document_type')
-                                    ->label('Document Type')
-                                    ->options(function () {
-                                        $options = [];
-                                        foreach (DocumentType::cases() as $type) {
-                                            $options[$type->value] = $type->label();
-                                        }
-                                        return $options;
-                                    })
-                                    ->required(),
-
-                                FileUpload::make('files')
-                                    ->label('Upload Documents')
-                                    ->helperText('Upload invoices, contracts, or any other relevant documents')
-                                    ->multiple()
-                                    ->directory('debtor-documents')
-                                    ->acceptedFileTypes(['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
-                                    ->maxSize(10240)
-                                    ->required(),
-                            ])
-                            ->columns(2)
-                            ->addActionLabel('Add Document Group')
-                            ->collapsible(),
-                    ]),
-            ]);
+        $this->newInvoicesTotal = $total;
     }
 
     protected function mutateFormDataBeforeFill(array $data): array
@@ -139,7 +53,6 @@ class EditDebtor extends EditRecord
         $business = Auth::user()->businesses()->first();
 
         if ($business) {
-            // Get the amount_owed from the pivot table
             $businessDebtor = $this->record->businesses()
                 ->where('business_id', $business->id)
                 ->first();
@@ -154,7 +67,6 @@ class EditDebtor extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        // Filter out fields that don't belong in the Debtor model
         return array_intersect_key($data, array_flip([
             'name',
             'kra_pin',
@@ -165,32 +77,126 @@ class EditDebtor extends EditRecord
 
     protected function afterSave(): void
     {
-        $business = Auth::user()->businesses()->first();
+        try {
+            // Use a transaction for all database operations
+            DB::transaction(function () {
+                $business = Auth::user()->businesses()->first();
 
-        if ($business && isset($this->data['amount_owed'])) {
-            // Update the business_debtor relationship with new amount
-            $this->record->businesses()->updateExistingPivot($business->id, [
-                'amount_owed' => $this->data['amount_owed'],
-                // Don't update other pivot fields here
+                if ($business) {
+                    // Calculate the total amount owed (existing + new)
+                    $this->existingInvoicesTotal = $this->record->invoices()
+                        ->where('business_id', $business->id)
+                        ->sum('due_amount');
+
+                    $this->calculatedAmountOwed = $this->existingInvoicesTotal + $this->newInvoicesTotal;
+
+                    // Update the business-debtor relationship
+                    $this->record->businesses()->updateExistingPivot($business->id, [
+                        'amount_owed' => $this->calculatedAmountOwed,
+                    ]);
+                }
+
+                // Create invoices (no background processing)
+                if (isset($this->data['new_invoices']) && is_array($this->data['new_invoices']) && !empty($this->data['new_invoices'])) {
+                    $this->storeNewInvoices($business);
+                }
+
+                // Store documents without processing
+                if (isset($this->data['new_documents']) && is_array($this->data['new_documents']) && !empty($this->data['new_documents'])) {
+                    $this->storeNewDocuments();
+                }
+            });
+
+            // Show success notifications outside transaction
+            $this->showSuccessNotifications();
+
+        } catch (\Exception $e) {
+            // Log the error
+            \Illuminate\Support\Facades\Log::error('Error in afterSave: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'debtor_id' => $this->record->id
             ]);
+
+            // Show error notification
+            Notification::make()
+                ->title('Error Updating Debtor')
+                ->body('Some changes were saved but there was an error updating all information: ' . $e->getMessage())
+                ->warning()
+                ->send();
+        }
+    }
+
+    /**
+     * Store new invoices efficiently
+     */
+    protected function storeNewInvoices($business): void
+    {
+        $invoiceRecords = [];
+        $now = now();
+
+        foreach ($this->data['new_invoices'] as $invoiceData) {
+            $invoiceRecords[] = [
+                'debtor_id' => $this->record->id,
+                'business_id' => $business->id,
+                'invoice_number' => $invoiceData['invoice_number'],
+                'invoice_date' => $invoiceData['invoice_date'],
+                'due_date' => $invoiceData['due_date'],
+                'invoice_amount' => $invoiceData['invoice_amount'],
+                'due_amount' => $invoiceData['due_amount'],
+                'payment_terms' => $invoiceData['payment_terms'],
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
         }
 
-        // Process any new invoices
-        if (isset($this->data['new_invoices']) && is_array($this->data['new_invoices']) && !empty($this->data['new_invoices'])) {
-            foreach ($this->data['new_invoices'] as $invoiceData) {
-                // Create invoice record linked to debtor and business
-                $this->record->invoices()->create([
-                    'business_id' => $business->id,
-                    'invoice_number' => $invoiceData['invoice_number'],
-                    'invoice_date' => $invoiceData['invoice_date'],
-                    'due_date' => $invoiceData['due_date'],
-                    'invoice_amount' => $invoiceData['invoice_amount'],
-                    'due_amount' => $invoiceData['due_amount'],
-                    'payment_terms' => $invoiceData['payment_terms'],
-                    // Other metrics will be calculated by the model boot method
-                ]);
-            }
+        // Bulk insert all invoices at once
+        if (!empty($invoiceRecords)) {
+            DB::table('invoices')->insert($invoiceRecords);
+        }
+    }
 
+    /**
+     * Store new documents efficiently
+     */
+    protected function storeNewDocuments(): void
+    {
+        $documentCount = 0;
+        $documentRecords = [];
+        $now = now();
+
+        foreach ($this->data['new_documents'] as $documentGroup) {
+            $documentType = $documentGroup['document_type'] ?? null;
+            $files = $documentGroup['files'] ?? [];
+
+            if ($documentType && is_array($files) && count($files) > 0) {
+                foreach ($files as $filePath) {
+                    $documentRecords[] = [
+                        'debtor_id' => $this->record->id,
+                        'type' => $documentType,
+                        'file_path' => $filePath,
+                        'original_filename' => basename($filePath),
+                        'uploaded_by' => Auth::id(),
+                        'processing_status' => 'stored',
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                    $documentCount++;
+                }
+            }
+        }
+
+        // Bulk insert all documents at once
+        if (!empty($documentRecords)) {
+            DB::table('debtor_documents')->insert($documentRecords);
+        }
+    }
+
+    /**
+     * Show success notifications
+     */
+    protected function showSuccessNotifications(): void
+    {
+        if (isset($this->data['new_invoices']) && is_array($this->data['new_invoices']) && !empty($this->data['new_invoices'])) {
             Notification::make()
                 ->title('Invoices Added')
                 ->body(count($this->data['new_invoices']) . ' new invoice(s) have been added to this debtor.')
@@ -198,33 +204,21 @@ class EditDebtor extends EditRecord
                 ->send();
         }
 
-        // Process any newly added documents
-        if (isset($this->data['new_documents']) && is_array($this->data['new_documents'])) {
-            foreach ($this->data['new_documents'] as $documentGroup) {
-                $documentType = $documentGroup['document_type'] ?? null;
-                $files = $documentGroup['files'] ?? [];
+        if (isset($this->data['new_documents']) && is_array($this->data['new_documents']) && !empty($this->data['new_documents'])) {
+            $documentCount = 0;
 
-                if ($documentType && is_array($files) && count($files) > 0) {
-                    foreach ($files as $file) {
-                        // Create document record
-                        $document = $this->record->documents()->create([
-                            'type' => $documentType,
-                            'file_path' => $file,
-                            'original_filename' => basename($file),
-                            'uploaded_by' => Auth::id(),
-                            'processing_status' => 'pending', // This will trigger the DocumentProcessable trait
-                        ]);
-                    }
+            foreach ($this->data['new_documents'] as $documentGroup) {
+                $files = $documentGroup['files'] ?? [];
+                if (is_array($files)) {
+                    $documentCount += count($files);
                 }
             }
 
-            if (count($this->data['new_documents']) > 0) {
-                Notification::make()
-                    ->title('Documents Added')
-                    ->body('New documents have been added to this debtor.')
-                    ->success()
-                    ->send();
-            }
+            Notification::make()
+                ->title('Documents Added')
+                ->body($documentCount . ' new document(s) have been added.')
+                ->success()
+                ->send();
         }
     }
 

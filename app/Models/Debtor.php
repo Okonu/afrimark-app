@@ -9,12 +9,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 class Debtor extends Model
 {
-    use HasFactory, SoftDeletes, DebtorCreditScore;
+    use HasFactory, SoftDeletes, DebtorCreditScore, Notifiable;
 
     protected $fillable = [
         'name',

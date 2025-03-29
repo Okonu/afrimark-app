@@ -47,8 +47,11 @@ class BusinessDocument extends Model
         return $this->belongsTo(User::class, 'verified_by');
     }
 
-
-
+    /**
+     * Extract business information from processed document
+     *
+     * @return array|null
+     */
     public function extractBusinessInformation(): ?array
     {
         if (!$this->isProcessingSuccessful()) {

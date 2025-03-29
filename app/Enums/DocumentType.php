@@ -10,8 +10,6 @@ enum DocumentType: string
     case CERTIFICATE_OF_INCORPORATION = 'certificate_of_incorporation';
     case TAX_PIN = 'tax_pin';
     case CR12_CR13 = 'cr12_cr13';
-
-    // Added document types
     case INVOICE = 'invoice';
     case PAYMENT_PROOF = 'payment_proof';
     case CONTRACT = 'contract';
@@ -32,8 +30,6 @@ enum DocumentType: string
             self::CERTIFICATE_OF_INCORPORATION => 'Certificate of Incorporation',
             self::TAX_PIN => 'Tax PIN Document',
             self::CR12_CR13 => 'CR12 or CR13 Document',
-
-            // Added labels
             self::INVOICE => 'Invoice',
             self::PAYMENT_PROOF => 'Payment Proof',
             self::CONTRACT => 'Contract or Agreement',
@@ -56,8 +52,6 @@ enum DocumentType: string
             self::CERTIFICATE_OF_INCORPORATION => 'Official certificate of incorporation',
             self::TAX_PIN => 'Tax PIN registration document',
             self::CR12_CR13 => 'Company CR12 or CR13 document',
-
-            // Added descriptions
             self::INVOICE => 'Invoice document showing amount owed',
             self::PAYMENT_PROOF => 'Proof of payment such as bank statement or transaction receipt',
             self::CONTRACT => 'Business contract or agreement document',

@@ -3,14 +3,16 @@
 namespace App\Notifications;
 
 use App\Models\Dispute;
+use App\Traits\QueuedNotifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Facades\Log;
 
 class DisputeResolvedNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use QueuedNotifications;
 
     protected $dispute;
 
@@ -20,6 +22,7 @@ class DisputeResolvedNotification extends Notification implements ShouldQueue
     public function __construct(Dispute $dispute)
     {
         $this->dispute = $dispute;
+        $this->onQueue('notifications');
     }
 
     /**
@@ -37,27 +40,37 @@ class DisputeResolvedNotification extends Notification implements ShouldQueue
      */
     public function toMail(object $notifiable): MailMessage
     {
-        $debtor = $this->dispute->debtor;
-        $message = (new MailMessage)
-            ->subject('Update on Your Dispute')
-            ->line('We have an update on the dispute you filed against the following debtor listing:')
-            ->line('Business: ' . $debtor->business->name)
-            ->line('Amount: ' . number_format($debtor->amount_owed, 2) . ' KES')
-            ->line('Invoice: ' . ($debtor->invoice_number ?? 'N/A'));
+        try {
+            $debtor = $this->dispute->debtor;
+            $message = (new MailMessage)
+                ->subject('Update on Your Dispute')
+                ->line('We have an update on the dispute you filed against the following debtor listing:')
+                ->line('Business: ' . $debtor->business->name)
+                ->line('Amount: ' . number_format($debtor->amount_owed, 2) . ' KES')
+                ->line('Invoice: ' . ($debtor->invoice_number ?? 'N/A'));
 
-        if ($this->dispute->status === 'resolved_approved') {
-            $message->line('Your dispute has been approved and the listing has been removed.')
-                ->line('Notes: ' . ($this->dispute->notes ?? 'No additional notes provided.'));
-        } elseif ($this->dispute->status === 'resolved_rejected') {
-            $message->line('Your dispute has been rejected and the listing will remain active.')
-                ->line('Notes: ' . ($this->dispute->notes ?? 'No additional notes provided.'));
-        } elseif ($this->dispute->status === 'under_review') {
-            $message->line('The lister has requested additional information regarding your dispute:')
-                ->line($this->dispute->notes)
-                ->action('Provide Additional Information', route('filament.client.resources.disputes.view', ['record' => $this->dispute->id]));
+            if ($this->dispute->status === 'resolved_approved') {
+                $message->line('Your dispute has been approved and the listing has been removed.')
+                    ->line('Notes: ' . ($this->dispute->notes ?? 'No additional notes provided.'));
+            } elseif ($this->dispute->status === 'resolved_rejected') {
+                $message->line('Your dispute has been rejected and the listing will remain active.')
+                    ->line('Notes: ' . ($this->dispute->notes ?? 'No additional notes provided.'));
+            } elseif ($this->dispute->status === 'under_review') {
+                $message->line('The lister has requested additional information regarding your dispute:')
+                    ->line($this->dispute->notes)
+                    ->action('Provide Additional Information', route('filament.client.resources.disputes.view', ['record' => $this->dispute->id]));
+            }
+
+            return $message->line('If you have any questions, please log in to your account to view the full details.');
+        } catch (\Exception $e) {
+            Log::error("Error in DisputeResolvedNotification: " . $e->getMessage());
+
+            // Fallback message
+            return (new MailMessage)
+                ->subject('Update on Your Dispute')
+                ->line('There has been an update to your dispute. Please log in to see details.')
+                ->action('View Dispute', route('filament.client.resources.disputes.index'));
         }
-
-        return $message->line('If you have any questions, please log in to your account to view the full details.');
     }
 
     /**
@@ -81,5 +94,17 @@ class DisputeResolvedNotification extends Notification implements ShouldQueue
             'message' => "Your dispute has been {$statusText}",
             'notes' => $this->dispute->notes,
         ];
+    }
+
+    /**
+     * Handle a failed notification.
+     *
+     * @param \Exception $exception
+     * @return void
+     */
+    public function failed(\Exception $exception)
+    {
+        Log::error("DisputeResolvedNotification failed: " . $exception->getMessage());
+        Log::error($exception->getTraceAsString());
     }
 }

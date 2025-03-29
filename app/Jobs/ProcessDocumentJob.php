@@ -2,6 +2,10 @@
 
 namespace App\Jobs;
 
+use App\Enums\DocumentType;
+use App\Models\BusinessDocument;
+use App\Models\DebtorDocument;
+use App\Models\DisputeDocument;
 use App\Services\DocumentProcessingService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -14,11 +18,32 @@ class ProcessDocumentJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    /**
+     * The number of times the job may be attempted.
+     *
+     * @var int
+     */
+    public $tries = 3;
+
+    /**
+     * The number of seconds to wait before retrying the job.
+     *
+     * @var array
+     */
+    public $backoff = [30, 60, 120];
+
+    /**
+     * The document to process.
+     *
+     * @var mixed
+     */
     protected $document;
-    protected int $maxAttempts = 3;
 
     /**
      * Create a new job instance.
+     *
+     * @param mixed $document
+     * @return void
      */
     public function __construct($document)
     {
@@ -28,104 +53,103 @@ class ProcessDocumentJob implements ShouldQueue
 
     /**
      * Execute the job.
+     *
+     * @param \App\Services\DocumentProcessingService $docService
+     * @return void
      */
-    public function handle(DocumentProcessingService $service): void
+    public function handle(DocumentProcessingService $docService)
     {
-        Log::info("Processing document: {$this->document->id}");
+        $documentType = $this->document instanceof BusinessDocument ? 'business' :
+            ($this->document instanceof DebtorDocument ? 'debtor' :
+                ($this->document instanceof DisputeDocument ? 'dispute' : 'unknown'));
+
+        Log::info("Processing document job started", [
+            'document_id' => $this->document->id,
+            'document_type' => $documentType,
+            'original_filename' => $this->document->original_filename,
+            'file_path' => $this->document->file_path,
+            'previous_status' => $this->document->processing_status
+        ]);
 
         try {
-            $filePath = $this->document->file_path;
-            $documentType = $this->determineDocumentType();
+            $this->document->processing_status = 'processing';
+            $this->document->save();
+
+            Log::info("Document status updated to processing", [
+                'document_id' => $this->document->id
+            ]);
+
             $result = null;
 
-            // Process the document based on its type
-            switch ($documentType) {
-                case 'invoice':
-                    $result = $service->processInvoice($filePath);
-                    break;
-                case 'contract':
-                    $result = $service->processContract($filePath);
-                    break;
-                case 'registration':
-                default:
-                    $result = $service->processRegistrationDocument($filePath);
-                    break;
+            // Route documents to correct endpoints based on the document type
+            if ($this->document instanceof BusinessDocument) {
+                // All business documents go to reg-docs endpoint
+                Log::info("Sending business document to reg-docs endpoint", [
+                    'document_id' => $this->document->id,
+                    'endpoint' => '/reg-docs-upload/'
+                ]);
+                $result = $docService->processRegistrationDocument($this->document->file_path);
+            } elseif ($this->document instanceof DebtorDocument) {
+                // All debtor documents go to invoice-upload endpoint
+                Log::info("Sending debtor document to invoice-upload endpoint", [
+                    'document_id' => $this->document->id,
+                    'endpoint' => '/invoice-upload/'
+                ]);
+                $result = $docService->processInvoice($this->document->file_path);
+            } elseif ($this->document instanceof DisputeDocument) {
+                // All dispute documents go to contract-upload endpoint
+                Log::info("Sending dispute document to contract-upload endpoint", [
+                    'document_id' => $this->document->id,
+                    'endpoint' => '/contract-upload/'
+                ]);
+                $result = $docService->processContract($this->document->file_path);
+            } else {
+                throw new \Exception("Unknown document type");
             }
 
-            // Store the result regardless of success/failure
+            // If we have a result, store it
             if ($result) {
                 $this->document->storeApiResponse($result);
-                Log::info("Document {$this->document->id} processed with API response");
+                Log::info("Document processed successfully", [
+                    'document_id' => $this->document->id,
+                    'status_code' => $result['status_code'] ?? 'unknown',
+                    'success' => $result['success'] ?? false
+                ]);
             } else {
-                // If we got null back, create a basic error response
-                $errorResponse = [
+                // Handle failure
+                $this->document->processing_status = 'failed';
+                $this->document->processing_result = [
                     'success' => false,
-                    'error' => 'No response from service',
-                    'timestamp' => now()->toIso8601String(),
-                    'request_id' => uniqid('doc_err_', true),
+                    'error' => 'No processing result returned',
+                    'timestamp' => now()->toIso8601String()
                 ];
+                $this->document->save();
 
-                $this->document->storeApiResponse($errorResponse);
-                Log::error("Document {$this->document->id} processing failed - no response from service");
-
-                // Retry logic
-                if ($this->attempts() < $this->maxAttempts) {
-                    $this->release(60 * $this->attempts()); // Exponential backoff
-                }
+                Log::error("Failed to process document: no result returned", [
+                    'document_id' => $this->document->id
+                ]);
             }
-        } catch (\Exception $e) {
-            Log::error("Error processing document {$this->document->id}: {$e->getMessage()}");
 
-            // Create an error response
-            $errorResponse = [
+        } catch (\Exception $e) {
+            Log::error("Failed to process document", [
+                'document_id' => $this->document->id,
+                'error' => $e->getMessage(),
+                'exception' => get_class($e),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            // Update document with error information
+            $this->document->processing_status = 'failed';
+            $this->document->processing_result = [
                 'success' => false,
                 'error' => $e->getMessage(),
                 'exception' => get_class($e),
-                'timestamp' => now()->toIso8601String(),
-                'request_id' => uniqid('doc_err_', true),
+                'timestamp' => now()->toIso8601String()
             ];
+            $this->document->save();
 
-            $this->document->storeApiResponse($errorResponse);
-
-            // Retry logic
-            if ($this->attempts() < $this->maxAttempts) {
-                $this->release(60 * $this->attempts()); // Exponential backoff
-            }
+            // Rethrow the exception to trigger job retry or failure
+            throw $e;
         }
-    }
-
-    /**
-     * Determine the document type for processing
-     *
-     * @return string
-     */
-    protected function determineDocumentType(): string
-    {
-        // Try to determine from model class name
-        $className = class_basename($this->document);
-
-        if (strpos($className, 'Business') !== false) {
-            return 'registration';
-        } elseif (strpos($className, 'Debtor') !== false) {
-            return 'invoice';
-        } elseif (strpos($className, 'Dispute') !== false) {
-            return 'contract';
-        }
-
-        // Try to determine from filename
-        $fileName = strtolower($this->document->original_filename ?? '');
-
-        if (strpos($fileName, 'invoice') !== false) {
-            return 'invoice';
-        } elseif (strpos($fileName, 'contract') !== false) {
-            return 'contract';
-        } elseif (strpos($fileName, 'registration') !== false ||
-            strpos($fileName, 'certificate') !== false ||
-            strpos($fileName, 'incorporation') !== false) {
-            return 'registration';
-        }
-
-        // Default to registration
-        return 'registration';
     }
 }

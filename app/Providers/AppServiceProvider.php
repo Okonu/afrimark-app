@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\Invoice;
 use App\Observers\InvoiceObserver;
+use App\Services\Calculations\InvoiceCalculationService;
 use App\Services\CreditScoreService;
 use App\Services\DocumentProcessingService;
 use Illuminate\Support\Facades\Blade;
@@ -22,6 +23,10 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(DocumentProcessingService::class, function ($app) {
             return new DocumentProcessingService();
+        });
+
+        $this->app->singleton(InvoiceCalculationService::class, function ($app) {
+            return new InvoiceCalculationService();
         });
 
         $this->mergeConfigFrom(

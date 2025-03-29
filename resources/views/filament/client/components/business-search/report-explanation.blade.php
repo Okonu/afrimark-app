@@ -12,7 +12,7 @@
             <div class="bg-white border border-gray-200 rounded-lg p-4">
                 <p class="mb-3">
                     This credit report provides an assessment of <span class="font-medium text-gray-800">{{ $businessReport['name'] ?? 'this business' }}</span>'s creditworthiness
-                    based on payment history, financial behavior, and credit factors. The credit score ranges from 0 to 100,
+                    based on payment history, and credit factors. The credit score ranges from 0 to 100,
                     with higher scores indicating better creditworthiness.
                 </p>
 

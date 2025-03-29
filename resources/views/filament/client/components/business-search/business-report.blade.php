@@ -6,10 +6,10 @@
     <!-- Credit Score Summary Cards -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <!-- Credit Score Card -->
-        @include('filament.client.components.business-search.report-score-card')
+{{--        @include('filament.client.components.business-search.report-score-card')--}}
 
         <!-- Financial Summary Card -->
-{{--        @include('filament.client.components.business-search.report-financial-card')--}}
+        @include('filament.client.components.business-search.report-financial-card')
 
         <!-- Listings Summary Card -->
         @include('filament.client.components.business-search.report-listings-card')

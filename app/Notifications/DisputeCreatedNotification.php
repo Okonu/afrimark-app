@@ -3,14 +3,16 @@
 namespace App\Notifications;
 
 use App\Models\Dispute;
+use App\Traits\QueuedNotifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Facades\Log;
 
 class DisputeCreatedNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use QueuedNotifications;
 
     protected $dispute;
 
@@ -20,6 +22,7 @@ class DisputeCreatedNotification extends Notification implements ShouldQueue
     public function __construct(Dispute $dispute)
     {
         $this->dispute = $dispute;
+        $this->onQueue('notifications');
     }
 
     /**
@@ -37,19 +40,28 @@ class DisputeCreatedNotification extends Notification implements ShouldQueue
      */
     public function toMail(object $notifiable): MailMessage
     {
-        $debtor = $this->dispute->debtor;
-        $business = $debtor->business;
+        try {
+            $debtor = $this->dispute->debtor;
+            $business = $debtor->business;
 
-        return (new MailMessage)
-            ->subject('Dispute Filed Against Your Debtor Listing')
-            ->line('A dispute has been filed against one of your debtor listings.')
-            ->line('Business: ' . $debtor->name)
-            ->line('Amount: ' . number_format($debtor->amount_owed, 2) . ' KES')
-            ->line('Invoice: ' . ($debtor->invoice_number ?? 'N/A'))
-            ->line('Dispute Type: ' . $this->getDisputeTypeText($this->dispute->dispute_type))
-            ->line('Description: ' . $this->dispute->description)
-            ->action('Respond to Dispute', route('filament.client.resources.disputes.respond', ['record' => $this->dispute->id]))
-            ->line('Please review and respond to this dispute promptly to maintain the accuracy of your credit listings.');
+            return (new MailMessage)
+                ->subject('Dispute Filed Against Your Debtor Listing')
+                ->line('A dispute has been filed against one of your debtor listings.')
+                ->line('Business: ' . $debtor->name)
+                ->line('Amount: ' . number_format($debtor->amount_owed, 2) . ' KES')
+                ->line('Invoice: ' . ($debtor->invoice_number ?? 'N/A'))
+                ->line('Dispute Type: ' . $this->getDisputeTypeText($this->dispute->dispute_type))
+                ->line('Description: ' . $this->dispute->description)
+                ->action('Respond to Dispute', route('filament.client.resources.disputes.respond', ['record' => $this->dispute->id]))
+                ->line('Please review and respond to this dispute promptly to maintain the accuracy of your credit listings.');
+        } catch (\Exception $e) {
+            Log::error("Error in DisputeCreatedNotification: " . $e->getMessage());
+
+            return (new MailMessage)
+                ->subject('Dispute Filed Against Your Debtor Listing')
+                ->line('A dispute has been filed against one of your debtor listings.')
+                ->action('Respond to Dispute', route('filament.client.resources.disputes.index'));
+        }
     }
 
     /**
@@ -87,5 +99,17 @@ class DisputeCreatedNotification extends Notification implements ShouldQueue
             'other' => 'Other',
             default => $type,
         };
+    }
+
+    /**
+     * Handle a failed notification.
+     *
+     * @param \Exception $exception
+     * @return void
+     */
+    public function failed(\Exception $exception)
+    {
+        Log::error("DisputeCreatedNotification failed: " . $exception->getMessage());
+        Log::error($exception->getTraceAsString());
     }
 }

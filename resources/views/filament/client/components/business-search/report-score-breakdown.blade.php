@@ -29,7 +29,7 @@
                     } : 'gray') }}-600">
                         {{ isset($businessReport['credit_score']) ? number_format((float)$businessReport['credit_score'], 1) : 'N/A' }}
                     </span>
-                    <span class="text-sm text-gray-500 ml-2 mb-1">/100</span>
+{{--                    <span class="text-sm text-gray-500 ml-2 mb-1">/100</span>--}}
                 </div>
                 <div class="mt-3">
                     <div class="w-full bg-gray-200 rounded-full h-2.5">
@@ -101,7 +101,7 @@
                     @if(isset($businessReport['api_score_details']['V']))
                         <div>
                             <div class="flex justify-between items-center mb-1">
-                                <span class="text-xs font-medium text-gray-700">Viability Score (V)</span>
+                                <span class="text-xs font-medium text-gray-700">Business Verification(V)</span>
                                 <span class="text-xs font-medium">{{ number_format($businessReport['api_score_details']['V'], 1) }}</span>
                             </div>
                             <div class="w-full bg-gray-200 rounded-full h-1.5">
@@ -121,7 +121,7 @@
                 <div class="space-y-4">
                     @if(isset($businessReport['api_score_details']['Reasons for score']))
                         <div>
-                            <p class="text-xs text-gray-500">Risk Factors</p>
+{{--                            <p class="text-xs text-gray-500">Risk Reasons</p>--}}
                             <p class="font-medium text-sm">{{ $businessReport['api_score_details']['Reasons for score'] }}</p>
                         </div>
                     @endif
@@ -135,21 +135,21 @@
                         </div>
                     @endif
 
-{{--                    @if(isset($businessReport['api_score_details']['Total Amount Owed']))--}}
-{{--                        <div>--}}
-{{--                            <p class="text-xs text-gray-500">Total Amount Owed</p>--}}
-{{--                            <p class="font-medium text-sm">--}}
-{{--                                KES {{ number_format($businessReport['api_score_details']['Total Amount Owed'], 2) }}--}}
-{{--                            </p>--}}
-{{--                        </div>--}}
-{{--                    @else--}}
-{{--                        <div>--}}
-{{--                            <p class="text-xs text-gray-500">Total Amount Owed</p>--}}
-{{--                            <p class="font-medium text-sm">--}}
-{{--                                KES {{ number_format($businessReport['total_owed'] ?? 0, 2) }}--}}
-{{--                            </p>--}}
-{{--                        </div>--}}
-{{--                    @endif--}}
+                    @if(isset($businessReport['api_score_details']['Total Amount Owed']))
+                        <div>
+                            <p class="text-xs text-gray-500">Total Amount Owed</p>
+                            <p class="font-medium text-sm">
+                                KES {{ number_format($businessReport['api_score_details']['Total Amount Owed'], 2) }}
+                            </p>
+                        </div>
+                    @else
+                        <div>
+                            <p class="text-xs text-gray-500">Total Amount Owed</p>
+                            <p class="font-medium text-sm">
+                                KES {{ number_format($businessReport['total_owed'] ?? 0, 2) }}
+                            </p>
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -193,7 +193,7 @@
         </div>
 
         <div class="mt-4 text-sm text-gray-500">
-            <p>This credit score is based on the business's payment history and financial behavior across the network.</p>
+            <p>This credit score is based on the business's payment history across our network.</p>
         </div>
     </div>
 </div>
